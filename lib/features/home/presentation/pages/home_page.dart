@@ -137,13 +137,13 @@ class HomePage extends StatelessWidget {
                                         children: [
                                           FeatureChip(
                                               label:
-                                                  'Public + private activity'),
+                                                  'Public + Private Activity'),
                                           FeatureChip(
                                               label:
-                                                  'Privacy-safe summaries'),
+                                                  'Privacy-Safe Summaries'),
                                           FeatureChip(
                                               label:
-                                                  'Platform-ready drafts'),
+                                                  'Platform-Ready Drafts'),
                                         ],
                                       ),
                                     ],

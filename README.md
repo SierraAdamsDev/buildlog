@@ -12,25 +12,22 @@ GitHub activity → clean summary → platform-ready post
 
 ## Features
 
-### V1 (Current Build Goal)
+### V1
 - GitHub username input for public activity
 - GitHub login/connect flow for private activity
 - GitHub API integration for public + private activity
 - Homepage with structured UI
 - Platform-ready post preview
+- Local persistence for username, mode, and selected platform
 - Clean, responsive Flutter web interface
 
-### V1.5 (Planned)
-- Local persistence for username and selected mode
-- Restore GitHub session locally when possible
-- Improved return-user experience
-
-### V2 (Future)
+### V2
 - Direct platform integrations:
   - Discord
   - X (Twitter)
   - Reddit
   - LinkedIn
+- Browser extension for quick post generation
 - Saved drafts
 - More export options and platform-specific formatting improvements
 
@@ -60,3 +57,5 @@ BuildLog is being built as a developer tool that helps turn real work into meani
 - Keep it useful
 - Avoid unnecessary complexity
 - Build features that actually solve real workflow problems
+
+Built by Sierra Adams under Grit & Flow Labs

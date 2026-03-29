@@ -1,20 +1,62 @@
 # BuildLog
 
-BuildLog is a lightweight tool that turns GitHub activity into clean, shareable updates for platforms like LinkedIn, X, Reddit, and Discord.
+BuildLog is a lightweight Flutter web app that turns GitHub activity into clean, platform-ready updates for LinkedIn, X, Reddit, Discord, and more — without exposing private repositories.
 
 ## Why I Built This
-A lot of developer work happens in private repositories. I wanted a way to highlight meaningful work without exposing private code.
+A lot of developer work happens in private repositories. BuildLog solves the problem of showing meaningful activity without making code public.
 
-## Current Status
-V1 in progress.
+Instead of auto-posting everything, BuildLog helps developers **choose what’s worth sharing**.
 
-## Planned Features
-- Pull GitHub activity (public + private)
-- Summarize commits into readable updates
-- Generate platform-ready post drafts
-- Privacy-safe summaries for private projects
+## Core Idea
+GitHub activity → clean summary → platform-ready post
+
+## Features
+
+### V1 (Current Build Goal)
+- GitHub username input for public activity
+- GitHub login/connect flow for private activity
+- GitHub API integration for public + private activity
+- Homepage with structured UI
+- Platform-ready post preview
+- Clean, responsive Flutter web interface
+
+### V1.5 (Planned)
+- Local persistence for username and selected mode
+- Restore GitHub session locally when possible
+- Improved return-user experience
+
+### V2 (Future)
+- Direct platform integrations:
+  - Discord
+  - X (Twitter)
+  - Reddit
+  - LinkedIn
+- Saved drafts
+- More export options and platform-specific formatting improvements
 
 ## Tech Stack
 - Flutter (Web)
 - Dart
 - GitHub API
+
+## Status
+🚧 In progress — actively building in public
+
+## Future Direction
+BuildLog is being built as a developer tool that helps turn real work into meaningful, shareable updates without noise or oversharing.
+
+## Example Output
+
+**Input (commits):**
+- added homepage structure  
+- cleaned up layout  
+- started summary flow  
+
+**Output (LinkedIn):**
+> Built the first version of BuildLog today. Cleaned up the app structure, added a homepage, and started shaping how GitHub activity turns into readable updates.
+
+## Goals
+- Keep it simple
+- Keep it useful
+- Avoid unnecessary complexity
+- Build features that actually solve real workflow problems

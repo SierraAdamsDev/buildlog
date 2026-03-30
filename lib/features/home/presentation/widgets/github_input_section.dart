@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:html' as html;
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:buildlog/features/github_activity/models/github_event.dart';
 import 'package:buildlog/features/github_activity/services/github_activity_service.dart';
@@ -96,13 +96,17 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
 
       await _saveGitHubToken(token);
 
-      final cleanUri = Uri.base.removeFragment().replace(queryParameters: {});
-      html.window.history.replaceState({}, '', cleanUri.toString());
+      final events = await GitHubActivityService.fetchPrivateActivity(token);
+
 
       if (!mounted) return;
 
       setState(() {
-        _errorMessage = 'GitHub connected successfully.';
+        _events = events;
+        _selectedEvent = events.isNotEmpty ? events.first : null;
+        _errorMessage = events.isEmpty
+            ? 'GitHub connected, but no recent activity was found.'
+            : 'GitHub connected successfully.';
       });
     } catch (error) {
       if (!mounted) return;
@@ -123,6 +127,9 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     setState(() {
       _mode = mode;
       _errorMessage = null;
+      _showResults = false;
+      _events = [];
+      _selectedEvent = null;
     });
     _saveData();
   }
@@ -155,7 +162,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     await _saveData();
 
     try {
-      final events = await GitHubActivityService.fetchPublicPushEvents(username);
+      final events = await GitHubActivityService.fetchPublicActivity(username);
 
       if (!mounted) return;
 
@@ -163,7 +170,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
         _events = events;
         _selectedEvent = events.isNotEmpty ? events.first : null;
         _errorMessage =
-            events.isEmpty ? 'No recent public push activity found.' : null;
+            events.isEmpty ? 'No recent public activity found.' : null;
       });
     } catch (error) {
       if (!mounted) return;
@@ -181,15 +188,23 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   }
 
   Future<void> _handleConnectGitHub() async {
-    const clientId = 'Ov23liUmc46NUGnWfi8i';
-    final redirectUri = Uri.encodeComponent(html.window.location.origin);
+  const clientId = 'YOUR_GITHUB_CLIENT_ID';
 
-    final authUrl =
-        'https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=repo';
+  final redirectUri = Uri.encodeComponent(Uri.base.origin);
 
-    html.window.location.href = authUrl;
+  final authUrl =
+      'https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=repo';
+
+  final uri = Uri.parse(authUrl);
+
+  if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Could not open GitHub login')),
+    );
   }
-
+}
   String _buildSummary() {
     final event = _selectedEvent;
 
@@ -454,7 +469,7 @@ class _ResultsSection extends StatelessWidget {
                     child: CircularProgressIndicator(),
                   ),
                 )
-              : errorMessage != null
+              : errorMessage != null && events.isEmpty
                   ? Text(
                       errorMessage!,
                       style: const TextStyle(
@@ -480,6 +495,16 @@ class _ResultsSection extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
+                        if (errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            errorMessage!,
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         ...events.take(5).map(
                           (event) => Padding(
@@ -522,7 +547,7 @@ class _ResultsSection extends StatelessWidget {
                       ],
                     ),
         ),
-        if (!isLoading && errorMessage == null && selectedEvent != null) ...[
+        if (!isLoading && selectedEvent != null) ...[
           const SizedBox(height: 20),
           Container(
             width: double.infinity,

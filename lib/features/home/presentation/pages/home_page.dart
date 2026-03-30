@@ -4,8 +4,9 @@ import 'package:buildlog/shared/widgets/preview_card.dart';
 import 'package:buildlog/features/home/presentation/widgets/github_input_section.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
+  HomePage({super.key});
+   final GlobalKey _githubSectionKey = GlobalKey();
+   
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -83,50 +84,25 @@ class HomePage extends StatelessWidget {
                                         runSpacing: 12,
                                         children: [
                                           ElevatedButton(
-                                            onPressed: null,
-                                            style:
-                                                ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  const Color(0xFF111827),
-                                              foregroundColor:
-                                                  Colors.white,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 22,
-                                                vertical: 18,
-                                              ),
-                                              shape:
-                                                  RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                        14),
-                                              ),
-                                            ),
-                                            child: const Text(
-                                                'Connect GitHub'),
+                                            onPressed: () {
+                                              Scrollable.ensureVisible(
+                                                _githubSectionKey.currentContext!,
+                                                duration: const Duration(milliseconds: 500),
+                                              );
+                                            },
+                                            child: const Text('Connect GitHub'),
                                           ),
+
+                                          const SizedBox(width: 12),
+
                                           OutlinedButton(
-                                            onPressed: null,
-                                            style:
-                                                OutlinedButton.styleFrom(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 22,
-                                                vertical: 18,
-                                              ),
-                                              shape:
-                                                  RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                        14),
-                                              ),
-                                              side: const BorderSide(
-                                                color:
-                                                    Color(0xFFD1D5DB),
-                                              ),
-                                            ),
-                                            child: const Text(
-                                                'See Example Output'),
+                                            onPressed: () {
+                                              Scrollable.ensureVisible(
+                                                _githubSectionKey.currentContext!,
+                                                duration: const Duration(milliseconds: 500),
+                                              );
+                                            },
+                                            child: const Text('Try Public Mode'),
                                           ),
                                         ],
                                       ),
@@ -160,7 +136,10 @@ class HomePage extends StatelessWidget {
                         const SizedBox(height: 24),
 
                         /// NEW SECTION (GitHub Input)
-                        const GitHubInputSection(),
+                        Container(
+                          key: _githubSectionKey,
+                          child: const GitHubInputSection(),
+                        ),
                       ],
                     ),
                   ),

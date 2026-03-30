@@ -16,7 +16,7 @@ class BuildLogApp extends StatelessWidget {
       title: 'BuildLog',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const HomePage(),
+      home: HomePage(),
     );
   }
 }

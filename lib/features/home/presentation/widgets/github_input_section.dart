@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:buildlog/features/github_activity/models/github_event.dart';
 import 'package:buildlog/features/github_activity/services/github_activity_service.dart';
@@ -7,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class GitHubInputSection extends StatefulWidget {
   const GitHubInputSection({super.key});
@@ -44,6 +44,8 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   Future<void> _loadSavedData() async {
     final prefs = await SharedPreferences.getInstance();
 
+    if (!mounted) return;
+
     setState(() {
       _controller.text = prefs.getString('username') ?? '';
       _mode = prefs.getString('mode') ?? 'public';
@@ -71,8 +73,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   }
 
   Future<void> _checkForOAuthCode() async {
-    final uri = Uri.base;
-    final code = uri.queryParameters['code'];
+    final code = Uri.base.queryParameters['code'];
 
     if (code == null || code.isEmpty) return;
 
@@ -80,24 +81,25 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       _isLoading = true;
       _showResults = true;
       _errorMessage = null;
+      _events = [];
+      _selectedEvent = null;
     });
 
     try {
       final response = await http.get(
-        Uri.parse('/.netlify/functions/github-oauth?code=$code'),
+        Uri.parse('${Uri.base.origin}/.netlify/functions/github-oauth?code=$code'),
       );
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final token = data['access_token']?.toString();
 
       if (token == null || token.isEmpty) {
-        throw Exception('Failed to retrieve GitHub access token.');
+        throw Exception(data['error']?.toString() ?? 'Failed to retrieve GitHub access token.');
       }
 
       await _saveGitHubToken(token);
 
       final events = await GitHubActivityService.fetchPrivateActivity(token);
-
 
       if (!mounted) return;
 
@@ -106,7 +108,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
         _selectedEvent = events.isNotEmpty ? events.first : null;
         _errorMessage = events.isEmpty
             ? 'GitHub connected, but no recent activity was found.'
-            : 'GitHub connected successfully.';
+            : null;
       });
     } catch (error) {
       if (!mounted) return;
@@ -169,8 +171,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       setState(() {
         _events = events;
         _selectedEvent = events.isNotEmpty ? events.first : null;
-        _errorMessage =
-            events.isEmpty ? 'No recent public activity found.' : null;
+        _errorMessage = events.isEmpty ? 'No recent public activity found.' : null;
       });
     } catch (error) {
       if (!mounted) return;
@@ -188,23 +189,22 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   }
 
   Future<void> _handleConnectGitHub() async {
-  const clientId = 'YOUR_GITHUB_CLIENT_ID';
+    const clientId = 'Ov23liUmc46NUGnWfi8i';
+    final redirectUri = Uri.encodeComponent(Uri.base.origin);
 
-  final redirectUri = Uri.encodeComponent(Uri.base.origin);
+    final authUrl =
+        'https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=repo';
 
-  final authUrl =
-      'https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=repo';
+    final uri = Uri.parse(authUrl);
 
-  final uri = Uri.parse(authUrl);
-
-  if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Could not open GitHub login')),
-    );
+    if (!await launchUrl(uri)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open GitHub login')),
+      );
+    }
   }
-}
+
   String _buildSummary() {
     final event = _selectedEvent;
 
@@ -214,12 +214,11 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
 
     final cleaned = event.commitMessages
         .take(3)
-        .map((message) => _cleanCommitMessage(message))
+        .map(_cleanCommitMessage)
         .toList();
 
     if (cleaned.length == 1) return cleaned.first;
     if (cleaned.length == 2) return '${cleaned[0]} and ${cleaned[1]}';
-
     return '${cleaned[0]}, ${cleaned[1]}, and ${cleaned[2]}';
   }
 
@@ -246,10 +245,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       }
     }
 
-    if (cleaned.isEmpty) {
-      return 'made updates';
-    }
-
+    if (cleaned.isEmpty) return 'made updates';
     return cleaned[0].toUpperCase() + cleaned.substring(1);
   }
 

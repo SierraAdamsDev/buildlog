@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:html' as html;
+
 import 'package:buildlog/features/github_activity/models/github_event.dart';
 import 'package:buildlog/features/github_activity/services/github_activity_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class GitHubInputSection extends StatefulWidget {
@@ -21,6 +25,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   String? _errorMessage;
   GitHubEvent? _selectedEvent;
   List<GitHubEvent> _events = [];
+  String? _githubToken;
 
   final List<String> _platforms = [
     'LinkedIn',
@@ -33,6 +38,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   void initState() {
     super.initState();
     _loadSavedData();
+    _checkForOAuthCode();
   }
 
   Future<void> _loadSavedData() async {
@@ -42,6 +48,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       _controller.text = prefs.getString('username') ?? '';
       _mode = prefs.getString('mode') ?? 'public';
       _selectedPlatform = prefs.getString('platform') ?? 'LinkedIn';
+      _githubToken = prefs.getString('github_token');
     });
   }
 
@@ -51,6 +58,65 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     await prefs.setString('username', _controller.text);
     await prefs.setString('mode', _mode);
     await prefs.setString('platform', _selectedPlatform);
+
+    if (_githubToken != null && _githubToken!.isNotEmpty) {
+      await prefs.setString('github_token', _githubToken!);
+    }
+  }
+
+  Future<void> _saveGitHubToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    _githubToken = token;
+    await prefs.setString('github_token', token);
+  }
+
+  Future<void> _checkForOAuthCode() async {
+    final uri = Uri.base;
+    final code = uri.queryParameters['code'];
+
+    if (code == null || code.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+      _showResults = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse('/.netlify/functions/github-oauth?code=$code'),
+      );
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final token = data['access_token']?.toString();
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Failed to retrieve GitHub access token.');
+      }
+
+      await _saveGitHubToken(token);
+
+      final cleanUri = Uri.base.removeFragment().replace(queryParameters: {});
+      html.window.history.replaceState({}, '', cleanUri.toString());
+
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = 'GitHub connected successfully.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _setMode(String mode) {
@@ -106,27 +172,22 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
         _errorMessage = error.toString().replaceFirst('Exception: ', '');
       });
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  void _handleConnectGitHub() {
-    _saveData();
+  Future<void> _handleConnectGitHub() async {
+    const clientId = 'Ov23liUmc46NUGnWfi8i';
+    final redirectUri = Uri.encodeComponent(html.window.location.origin);
 
-    setState(() {
-      _showResults = true;
-      _errorMessage = 'Private GitHub connection comes in Pass 2.';
-      _events = [];
-      _selectedEvent = null;
-    });
+    final authUrl =
+        'https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=repo';
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Private GitHub connection comes next')),
-    );
+    html.window.location.href = authUrl;
   }
 
   String _buildSummary() {
@@ -262,8 +323,12 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
                   ),
                   const SizedBox(width: 10),
                   OutlinedButton(
-                    onPressed: _mode == 'private' ? _handleConnectGitHub : null,
-                    child: const Text('Connect GitHub'),
+                    onPressed: _mode == 'private' && !_isLoading
+                        ? _handleConnectGitHub
+                        : null,
+                    child: Text(
+                      _githubToken != null ? 'GitHub Connected' : 'Connect GitHub',
+                    ),
                   ),
                 ],
               ),

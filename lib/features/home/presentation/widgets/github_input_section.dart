@@ -74,6 +74,45 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     await prefs.setString('github_token', token);
   }
 
+  Future<void> _loadPrivateActivity() async {
+    if (_githubToken == null || _githubToken!.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+      _showResults = true;
+      _errorMessage = null;
+      _events = [];
+      _selectedEvent = null;
+    });
+
+    try {
+      final events =
+          await GitHubActivityService.fetchPrivateActivity(_githubToken!);
+
+      if (!mounted) return;
+
+      setState(() {
+        _events = events;
+        _selectedEvent = events.isNotEmpty ? events.first : null;
+        _errorMessage = events.isEmpty
+            ? 'GitHub connected, but no recent activity was found.'
+            : null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _checkForOAuthCode() async {
     final code = Uri.base.queryParameters['code'];
 
@@ -89,7 +128,9 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
 
     try {
       final response = await http.get(
-        Uri.parse('${Uri.base.origin}/.netlify/functions/github-oauth?code=$code'),
+        Uri.parse(
+          '${Uri.base.origin}/.netlify/functions/github-oauth?code=$code',
+        ),
       );
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -97,23 +138,13 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
 
       if (token == null || token.isEmpty) {
         throw Exception(
-          data['error']?.toString() ?? 'Failed to retrieve GitHub access token.',
+          data['error']?.toString() ??
+              'Failed to retrieve GitHub access token.',
         );
       }
 
       await _saveGitHubToken(token);
-
-      final events = await GitHubActivityService.fetchPrivateActivity(token);
-
-      if (!mounted) return;
-
-      setState(() {
-        _events = events;
-        _selectedEvent = events.isNotEmpty ? events.first : null;
-        _errorMessage = events.isEmpty
-            ? 'GitHub connected, but no recent activity was found.'
-            : null;
-      });
+      await _loadPrivateActivity();
     } catch (error) {
       if (!mounted) return;
 
@@ -175,7 +206,8 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       setState(() {
         _events = events;
         _selectedEvent = events.isNotEmpty ? events.first : null;
-        _errorMessage = events.isEmpty ? 'No recent public activity found.' : null;
+        _errorMessage =
+            events.isEmpty ? 'No recent public activity found.' : null;
       });
     } catch (error) {
       if (!mounted) return;
@@ -193,7 +225,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   }
 
   Future<void> _handleConnectGitHub() async {
-    const clientId = 'YOUR_GITHUB_CLIENT_ID';
+    const clientId = 'Ov23liUmc46NUGnWfi8i';
     final redirectUri = Uri.encodeComponent(Uri.base.origin);
 
     final authUrl =
@@ -209,61 +241,63 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     }
   }
 
- String _cleanCommitMessage(String message) {
-  var cleaned = message.trim();
+  String _cleanCommitMessage(String message) {
+    var cleaned = message.trim();
 
-  final prefixes = [
-    'feat:',
-    'fix:',
-    'refactor:',
-    'docs:',
-    'style:',
-    'test:',
-    'chore:',
-    'build:',
-    'perf:',
-    'ci:',
-  ];
+    final prefixes = [
+      'feat:',
+      'fix:',
+      'refactor:',
+      'docs:',
+      'style:',
+      'test:',
+      'chore:',
+      'build:',
+      'perf:',
+      'ci:',
+    ];
 
-  for (final prefix in prefixes) {
-    if (cleaned.toLowerCase().startsWith(prefix)) {
-      cleaned = cleaned.substring(prefix.length).trim();
-      break;
+    for (final prefix in prefixes) {
+      if (cleaned.toLowerCase().startsWith(prefix)) {
+        cleaned = cleaned.substring(prefix.length).trim();
+        break;
+      }
     }
+
+    if (cleaned.isEmpty) return 'made updates';
+
+    final verbMap = {
+      'add': 'added',
+      'adds': 'added',
+      'added': 'added',
+      'fix': 'fixed',
+      'fixed': 'fixed',
+      'update': 'updated',
+      'updated': 'updated',
+      'remove': 'removed',
+      'removed': 'removed',
+      'create': 'created',
+      'created': 'created',
+      'improve': 'improved',
+      'improved': 'improved',
+      'clean': 'cleaned',
+      'cleaned': 'cleaned',
+      'polish': 'polished',
+      'polished': 'polished',
+    };
+
+    final parts = cleaned.split(RegExp(r'\s+'));
+    final firstWord =
+        parts.first.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+
+    if (verbMap.containsKey(firstWord)) {
+      final rest = cleaned.substring(parts.first.length).trimLeft();
+      return '${verbMap[firstWord]}${rest.isNotEmpty ? ' $rest' : ''}';
+    }
+
+    return cleaned[0].toLowerCase() + cleaned.substring(1);
   }
 
-  if (cleaned.isEmpty) return 'made updates';
-
-  final verbMap = {
-    'add': 'added',
-    'adds': 'added',
-    'added': 'added',
-    'fix': 'fixed',
-    'fixed': 'fixed',
-    'update': 'updated',
-    'updated': 'updated',
-    'remove': 'removed',
-    'removed': 'removed',
-    'create': 'created',
-    'created': 'created',
-    'improve': 'improved',
-    'improved': 'improved',
-    'clean': 'cleaned',
-    'cleaned': 'cleaned',
-    'polish': 'polished',
-    'polished': 'polished',
-  };
-
-  final parts = cleaned.split(RegExp(r'\s+'));
-  final firstWord = parts.first.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
-
-  if (verbMap.containsKey(firstWord)) {
-    final rest = cleaned.substring(parts.first.length).trimLeft();
-    return '${verbMap[firstWord]}${rest.isNotEmpty ? ' $rest' : ''}';
-  }
-
-  return cleaned[0].toLowerCase() + cleaned.substring(1);
-}
   String _repoDisplayName() {
     final repoName = _selectedEvent?.repoName ?? '';
 
@@ -274,72 +308,69 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   }
 
   String _summaryForPost() {
-  final event = _selectedEvent;
+    final event = _selectedEvent;
 
-  if (event == null || event.commitMessages.isEmpty) {
-    return 'made a round of improvements';
+    if (event == null || event.commitMessages.isEmpty) {
+      return 'made a round of improvements';
+    }
+
+    final cleaned = event.commitMessages.take(3).map(_cleanCommitMessage).toList();
+
+    if (cleaned.length == 1) return cleaned.first;
+    if (cleaned.length == 2) {
+      return '${cleaned[0]} and ${cleaned[1]}';
+    }
+
+    return '${cleaned[0]}, ${cleaned[1]}, and ${cleaned[2]}';
   }
 
-  final cleaned = event.commitMessages
-      .take(3)
-      .map(_cleanCommitMessage)
-      .toList();
-
-  if (cleaned.length == 1) return cleaned.first;
-  if (cleaned.length == 2) {
-    return '${cleaned[0]} and ${cleaned[1]}';
+  String _capitalizeFirst(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
   }
 
-  return '${cleaned[0]}, ${cleaned[1]}, and ${cleaned[2]}';
-}
+  String _generatedPost() {
+    final repoName = _repoDisplayName();
+    final summary = _summaryForPost();
+    final capitalizedSummary = _capitalizeFirst(summary);
 
-String _capitalizeFirst(String text) {
-  if (text.isEmpty) return text;
-  return text[0].toUpperCase() + text.substring(1);
-}
+    final linkedinTemplates = [
+      'Made more progress on $repoName today — $summary. I also kept refining the overall experience to make it cleaner and more intuitive.',
+      'Spent time improving $repoName today. $capitalizedSummary, and I continued shaping the product into something smoother and more usable.',
+      'Another solid round of updates on $repoName today. $capitalizedSummary, and I kept polishing the experience.',
+    ];
 
-String _generatedPost() {
-  final repoName = _repoDisplayName();
-  final summary = _summaryForPost();
-  final capitalizedSummary = _capitalizeFirst(summary);
+    final xTemplates = [
+      'Worked on $repoName today — $summary. Still building. 🚀',
+      '$repoName update: $capitalizedSummary. More progress today.',
+      'Made progress on $repoName today — $summary. Still refining it.',
+    ];
 
-  final linkedinTemplates = [
-  'Made more progress on $repoName today — $summary. I also kept refining the overall experience to make it cleaner and more intuitive.',
-  'Spent time improving $repoName today. $capitalizedSummary, and I continued shaping the product into something smoother and more usable.',
-  'Another solid round of updates on $repoName today. $capitalizedSummary, and I kept polishing the experience.',
-];
+    final redditTemplates = [
+      'Made more progress on $repoName today. $capitalizedSummary, and I kept improving the overall experience.',
+      'Worked on $repoName today, and $summary. Still refining the flow and usability.',
+    ];
 
-  final xTemplates = [
-  'Worked on $repoName today — $summary. Still building. 🚀',
-  '$repoName update: $capitalizedSummary. More progress today.',
-  'Made progress on $repoName today — $summary. Still refining it.',
-];
+    final discordTemplates = [
+      'Update on $repoName: $summary.',
+      '$repoName progress today: $capitalizedSummary.',
+    ];
 
-  final redditTemplates = [
-  'Made more progress on $repoName today. $capitalizedSummary, and I kept improving the overall experience.',
-  'Worked on $repoName today, and $summary. Still refining the flow and usability.',
-];
+    String pick(List<String> options) => options[_random.nextInt(options.length)];
 
-  final discordTemplates = [
-  'Update on $repoName: $summary.',
-  '$repoName progress today: $capitalizedSummary.',
-];
-
-  String pick(List<String> options) => options[_random.nextInt(options.length)];
-
-  switch (_selectedPlatform) {
-    case 'LinkedIn':
-      return '${pick(linkedinTemplates)}\n\n#BuildInPublic #WebDevelopment #SoftwareDevelopment #ProductDesign #GitHub';
-    case 'X':
-      return '${pick(xTemplates)}\n\n#buildinpublic #webdev #coding #devlife';
-    case 'Reddit':
-      return pick(redditTemplates);
-    case 'Discord':
-      return pick(discordTemplates);
-    default:
-      return 'Worked on $repoName today. I $summary.';
+    switch (_selectedPlatform) {
+      case 'LinkedIn':
+        return '${pick(linkedinTemplates)}\n\n#BuildInPublic #WebDevelopment #SoftwareDevelopment #ProductDesign #GitHub';
+      case 'X':
+        return '${pick(xTemplates)}\n\n#buildinpublic #webdev #coding #devlife';
+      case 'Reddit':
+        return pick(redditTemplates);
+      case 'Discord':
+        return pick(discordTemplates);
+      default:
+        return 'Worked on $repoName today. $capitalizedSummary.';
+    }
   }
-}
 
   Future<void> _copyPost() async {
     await Clipboard.setData(
@@ -401,15 +432,21 @@ String _generatedPost() {
                     onPressed: _mode == 'public' && !_isLoading
                         ? _handlePublicLoad
                         : null,
-                    child: Text(_isLoading ? 'Loading...' : 'Load Public Activity'),
+                    child: Text(
+                      _isLoading ? 'Loading...' : 'Load Public Activity',
+                    ),
                   ),
                   const SizedBox(width: 10),
                   OutlinedButton(
                     onPressed: _mode == 'private' && !_isLoading
-                        ? _handleConnectGitHub
+                        ? ((_githubToken == null || _githubToken!.isEmpty)
+                            ? _handleConnectGitHub
+                            : _loadPrivateActivity)
                         : null,
                     child: Text(
-                      _githubToken != null ? 'GitHub Connected' : 'Connect GitHub',
+                      (_githubToken != null && _githubToken!.isNotEmpty)
+                          ? 'Load Private Activity'
+                          : 'Connect GitHub',
                     ),
                   ),
                 ],
@@ -516,8 +553,6 @@ class _ResultsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-     
-
     return Column(
       children: [
         Container(
@@ -554,7 +589,6 @@ class _ResultsSection extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 18),
-                       
                         if (errorMessage != null) ...[
                           const SizedBox(height: 10),
                           Text(
@@ -593,7 +627,9 @@ class _ResultsSection extends StatelessWidget {
                                         event.repoName,
                                         style: TextStyle(
                                           fontWeight: FontWeight.w700,
-                                          color: selected ? Colors.white : const Color(0xFF111827),
+                                          color: selected
+                                              ? Colors.white
+                                              : const Color(0xFF111827),
                                         ),
                                       ),
                                       const SizedBox(height: 10),
@@ -602,21 +638,26 @@ class _ResultsSection extends StatelessWidget {
                                         style: TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
-                                          color: selected ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                                          color: selected
+                                              ? const Color(0xFF9CA3AF)
+                                              : const Color(0xFF6B7280),
                                         ),
                                       ),
                                       const SizedBox(height: 8),
                                       ...event.commitMessages.take(3).map(
-                                      (message) => Padding(
-                                        padding: const EdgeInsets.only(bottom: 4),
-                                        child: Text(
-                                          '• $message',
-                                        style: TextStyle(
-                                          color: selected ? Colors.white : null,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                            (message) => Padding(
+                                              padding:
+                                                  const EdgeInsets.only(bottom: 4),
+                                              child: Text(
+                                                '• $message',
+                                                style: TextStyle(
+                                                  color: selected
+                                                      ? Colors.white
+                                                      : null,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
                                     ],
                                   ),
                                 ),
@@ -669,7 +710,9 @@ class _ResultsSection extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: selected ? Colors.white : const Color(0xFF374151),
+                            color: selected
+                                ? Colors.white
+                                : const Color(0xFF374151),
                           ),
                         ),
                       ),
@@ -687,9 +730,9 @@ class _ResultsSection extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'Draft',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF9CA3AF),

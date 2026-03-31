@@ -232,8 +232,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     }
   }
 
-  // 🔥 Normalize common verbs
-  final lower = cleaned.toLowerCase();
+  if (cleaned.isEmpty) return 'made updates';
 
   final verbMap = {
     'add': 'added',
@@ -251,18 +250,20 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     'improved': 'improved',
     'clean': 'cleaned',
     'cleaned': 'cleaned',
+    'polish': 'polished',
+    'polished': 'polished',
   };
 
-  for (final key in verbMap.keys) {
-    if (lower.startsWith('$key ')) {
-      return verbMap[key]! + cleaned.substring(key.length);
-    }
+  final parts = cleaned.split(RegExp(r'\s+'));
+  final firstWord = parts.first.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+
+  if (verbMap.containsKey(firstWord)) {
+    final rest = cleaned.substring(parts.first.length).trimLeft();
+    return '${verbMap[firstWord]}${rest.isNotEmpty ? ' $rest' : ''}';
   }
 
-  // fallback
   return cleaned[0].toLowerCase() + cleaned.substring(1);
 }
-
   String _repoDisplayName() {
     final repoName = _selectedEvent?.repoName ?? '';
 
@@ -292,34 +293,37 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   return '${cleaned[0]}, ${cleaned[1]}, and ${cleaned[2]}';
 }
 
-
-
+String _capitalizeFirst(String text) {
+  if (text.isEmpty) return text;
+  return text[0].toUpperCase() + text.substring(1);
+}
 
 String _generatedPost() {
   final repoName = _repoDisplayName();
   final summary = _summaryForPost();
+  final capitalizedSummary = _capitalizeFirst(summary);
 
   final linkedinTemplates = [
-    'Made more progress on $repoName today — $summary. I also kept refining the overall experience to make it cleaner and more intuitive.',
-    'Spent time improving $repoName today. I $summary and continued shaping the product into something smoother and more usable.',
-    'Another solid round of updates on $repoName today. I $summary and kept polishing the experience.',
-  ];
+  'Made more progress on $repoName today — $summary. I also kept refining the overall experience to make it cleaner and more intuitive.',
+  'Spent time improving $repoName today. $capitalizedSummary, and I continued shaping the product into something smoother and more usable.',
+  'Another solid round of updates on $repoName today. $capitalizedSummary, and I kept polishing the experience.',
+];
 
   final xTemplates = [
-    'Worked on $repoName today — $summary. Still building. 🚀',
-    '$repoName update: $summary. More progress today.',
-    'Made progress on $repoName today — $summary. Still refining it.',
-  ];
+  'Worked on $repoName today — $summary. Still building. 🚀',
+  '$repoName update: $capitalizedSummary. More progress today.',
+  'Made progress on $repoName today — $summary. Still refining it.',
+];
 
   final redditTemplates = [
-    'Made more progress on $repoName today. I $summary and kept improving the overall experience.',
-    'Worked on $repoName today and $summary. Still refining the flow and usability.',
-  ];
+  'Made more progress on $repoName today. $capitalizedSummary, and I kept improving the overall experience.',
+  'Worked on $repoName today, and $summary. Still refining the flow and usability.',
+];
 
   final discordTemplates = [
-    'Update on $repoName: I $summary.',
-    '$repoName progress today: I $summary.',
-  ];
+  'Update on $repoName: $summary.',
+  '$repoName progress today: $capitalizedSummary.',
+];
 
   String pick(List<String> options) => options[_random.nextInt(options.length)];
 

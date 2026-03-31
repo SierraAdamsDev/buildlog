@@ -94,7 +94,9 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       final token = data['access_token']?.toString();
 
       if (token == null || token.isEmpty) {
-        throw Exception(data['error']?.toString() ?? 'Failed to retrieve GitHub access token.');
+        throw Exception(
+          data['error']?.toString() ?? 'Failed to retrieve GitHub access token.',
+        );
       }
 
       await _saveGitHubToken(token);
@@ -189,7 +191,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   }
 
   Future<void> _handleConnectGitHub() async {
-    const clientId = 'Ov23liUmc46NUGnWfi8i';
+    const clientId = 'YOUR_GITHUB_CLIENT_ID';
     final redirectUri = Uri.encodeComponent(Uri.base.origin);
 
     final authUrl =
@@ -203,23 +205,6 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
         const SnackBar(content: Text('Could not open GitHub login')),
       );
     }
-  }
-
-  String _buildSummary() {
-    final event = _selectedEvent;
-
-    if (event == null || event.commitMessages.isEmpty) {
-      return 'Worked on BuildLog and made progress worth sharing.';
-    }
-
-    final cleaned = event.commitMessages
-        .take(3)
-        .map(_cleanCommitMessage)
-        .toList();
-
-    if (cleaned.length == 1) return cleaned.first;
-    if (cleaned.length == 2) return '${cleaned[0]} and ${cleaned[1]}';
-    return '${cleaned[0]}, ${cleaned[1]}, and ${cleaned[2]}';
   }
 
   String _cleanCommitMessage(String message) {
@@ -249,22 +234,50 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     return cleaned[0].toUpperCase() + cleaned.substring(1);
   }
 
+  String _repoDisplayName() {
+    final repoName = _selectedEvent?.repoName ?? '';
+
+    if (repoName.isEmpty) return 'your project';
+
+    final parts = repoName.split('/');
+    return parts.isNotEmpty ? parts.last : repoName;
+  }
+
+  String _summaryForPost() {
+    final event = _selectedEvent;
+
+    if (event == null || event.commitMessages.isEmpty) {
+      return 'shipped another round of improvements';
+    }
+
+    final cleaned = event.commitMessages
+        .take(3)
+        .map(_cleanCommitMessage)
+        .toList();
+
+    if (cleaned.length == 1) return cleaned.first.toLowerCase();
+    if (cleaned.length == 2) {
+      return '${cleaned[0].toLowerCase()} and ${cleaned[1].toLowerCase()}';
+    }
+
+    return '${cleaned[0].toLowerCase()}, ${cleaned[1].toLowerCase()}, and ${cleaned[2].toLowerCase()}';
+  }
+
   String _generatedPost() {
-    final repoName = _selectedEvent?.repoName ?? 'BuildLog';
-    final summary = _buildSummary();
-    final username = _controller.text.trim();
+    final repoName = _repoDisplayName();
+    final summary = _summaryForPost();
 
     switch (_selectedPlatform) {
       case 'LinkedIn':
-        return 'Built more progress on $repoName today. Recent work included $summary. Using BuildLog to turn GitHub activity into clearer, shareable updates is starting to feel very real.';
+        return 'Built more of $repoName today. I $summary and kept shaping the product into something cleaner and more usable.';
       case 'X':
-        return 'Shipped more work on $repoName 🚀 $summary. Testing BuildLog with real GitHub activity from @$username. #buildinpublic #webdev';
+        return 'Worked on $repoName today. I $summary. Still pushing BuildLog forward. #buildinpublic #webdev';
       case 'Reddit':
-        return 'I’m testing BuildLog with real GitHub activity now. Recent work on $repoName included $summary. It’s been nice seeing actual commits turn into cleaner post drafts.';
+        return 'Made more progress on $repoName today. I $summary and kept improving how BuildLog turns GitHub activity into cleaner post drafts.';
       case 'Discord':
-        return 'BuildLog update: recent work on $repoName included $summary.';
+        return 'Update on $repoName: I $summary.';
       default:
-        return 'Built more of $repoName today: $summary.';
+        return 'Worked on $repoName today. I $summary.';
     }
   }
 
@@ -288,8 +301,6 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
 
   @override
   Widget build(BuildContext context) {
-    final repoLabel = _selectedEvent?.repoName ?? _controller.text.trim();
-
     return Column(
       children: [
         Container(
@@ -351,7 +362,6 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
           _ResultsSection(
             isLoading: _isLoading,
             errorMessage: _errorMessage,
-            repoName: repoLabel.isEmpty ? 'No repo selected' : repoLabel,
             events: _events,
             selectedEvent: _selectedEvent,
             onEventSelected: (event) {
@@ -422,7 +432,6 @@ class _ModeCards extends StatelessWidget {
 class _ResultsSection extends StatelessWidget {
   final bool isLoading;
   final String? errorMessage;
-  final String repoName;
   final List<GitHubEvent> events;
   final GitHubEvent? selectedEvent;
   final ValueChanged<GitHubEvent> onEventSelected;
@@ -435,7 +444,6 @@ class _ResultsSection extends StatelessWidget {
   const _ResultsSection({
     required this.isLoading,
     required this.errorMessage,
-    required this.repoName,
     required this.events,
     required this.selectedEvent,
     required this.onEventSelected,
@@ -448,6 +456,8 @@ class _ResultsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeRepo = selectedEvent?.repoName ?? 'No repo selected';
+
     return Column(
       children: [
         Container(
@@ -483,16 +493,17 @@ class _ResultsSection extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
                         Text(
-                          repoName,
+                          activeRepo,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
+                            color: Color(0xFF111827),
                           ),
                         ),
                         if (errorMessage != null) ...[
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           Text(
                             errorMessage!,
                             style: const TextStyle(
@@ -501,44 +512,59 @@ class _ResultsSection extends StatelessWidget {
                             ),
                           ),
                         ],
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
                         ...events.take(5).map(
-                          (event) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: GestureDetector(
-                              onTap: () => onEventSelected(event),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: selectedEvent == event
-                                      ? const Color(0xFFF3F4F6)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(0xFFE5E7EB),
+                          (event) {
+                            final selected = selectedEvent == event;
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: GestureDetector(
+                                onTap: () => onEventSelected(event),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    color: selected
+                                        ? const Color(0xFFF9FAFB)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: const Color(0xFFE5E7EB),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        event.repoName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF111827),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      const Text(
+                                        'Recent work',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF6B7280),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      ...event.commitMessages.take(3).map(
+                                            (message) => Padding(
+                                              padding: const EdgeInsets.only(bottom: 4),
+                                              child: Text('• $message'),
+                                            ),
+                                          ),
+                                    ],
                                   ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      event.repoName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      event.commitMessages.first,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -563,6 +589,7 @@ class _ResultsSection extends StatelessWidget {
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: 10,
+                  runSpacing: 10,
                   children: platforms.map((platform) {
                     final selected = platform == selectedPlatform;
 
@@ -570,39 +597,59 @@ class _ResultsSection extends StatelessWidget {
                       onTap: () => onPlatformSelected(platform),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                          horizontal: 14,
+                          vertical: 10,
                         ),
                         decoration: BoxDecoration(
                           color: selected
-                              ? Colors.black
+                              ? const Color(0xFF111827)
                               : const Color(0xFFF3F4F6),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
                           platform,
                           style: TextStyle(
-                            color: selected ? Colors.white : Colors.black,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: selected ? Colors.white : const Color(0xFF374151),
                           ),
                         ),
                       ),
                     );
                   }).toList(),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(0xFF111827),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    generatedPost,
-                    style: const TextStyle(color: Colors.white),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$selectedPlatform draft',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF9CA3AF),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        generatedPost,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          height: 1.6,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 14),
                 ElevatedButton(
                   onPressed: onCopy,
                   child: const Text('Copy Draft'),

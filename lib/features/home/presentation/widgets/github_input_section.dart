@@ -229,7 +229,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     final redirectUri = Uri.encodeComponent(Uri.base.origin);
 
     final authUrl =
-        'https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=repo';
+    'https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=repo%20read:user%20user:email';
 
     final uri = Uri.parse(authUrl);
 

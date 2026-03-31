@@ -57,13 +57,14 @@ class GitHubActivityService {
     final response = await http.get(
       uri,
       headers: {
-        ..._baseHeaders,
         'Authorization': 'Bearer $token',
+        'Accept': 'application/vnd.github+json',
       },
     );
-
     if (response.statusCode != 200) {
-      throw Exception('Failed to load private GitHub activity.');
+      throw Exception(
+        'Failed to load private GitHub activity. Status: ${response.statusCode}. Body: ${response.body}',
+      );
     }
 
     final List<dynamic> data = jsonDecode(response.body) as List<dynamic>;
@@ -87,9 +88,10 @@ class GitHubActivityService {
     }
 
     if (reposResponse.statusCode != 200) {
-      throw Exception('Failed to load public repositories.');
+      throw Exception(
+        'Failed to load repositories from connected GitHub account. Status: ${reposResponse.statusCode}. Body: ${reposResponse.body}',
+      );
     }
-
     final List<dynamic> repos = jsonDecode(reposResponse.body) as List<dynamic>;
     final List<GitHubEvent> results = [];
 

@@ -264,22 +264,26 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   }
 
   String _generatedPost() {
-    final repoName = _repoDisplayName();
-    final summary = _summaryForPost();
+  final repoName = _repoDisplayName();
+  final summary = _summaryForPost();
 
-    switch (_selectedPlatform) {
-      case 'LinkedIn':
-        return 'Built more of $repoName today. I $summary and kept shaping the product into something cleaner and more usable.';
-      case 'X':
-        return 'Worked on $repoName today. I $summary. Still pushing BuildLog forward. #buildinpublic #webdev';
-      case 'Reddit':
-        return 'Made more progress on $repoName today. I $summary and kept improving how BuildLog turns GitHub activity into cleaner post drafts.';
-      case 'Discord':
-        return 'Update on $repoName: I $summary.';
-      default:
-        return 'Worked on $repoName today. I $summary.';
-    }
+  switch (_selectedPlatform) {
+    case 'LinkedIn':
+      return 'Made more progress on $repoName today. I $summary, and continued refining the overall experience to make it cleaner and more intuitive.\n\n#buildinpublic #webdevelopment #softwaredevelopment #productdevelopment #github #developers';
+
+    case 'X':
+      return 'Worked on $repoName today — $summary. Still building and refining. 🚀\n\n#buildinpublic #webdev #coding #devlife';
+
+    case 'Reddit':
+      return 'Made more progress on $repoName today. I $summary and kept improving how everything flows and feels from a user perspective.';
+
+    case 'Discord':
+      return 'Update on $repoName: $summary. Still refining and improving the experience.';
+
+    default:
+      return 'Worked on $repoName today. I $summary.';
   }
+}
 
   Future<void> _copyPost() async {
     await Clipboard.setData(
@@ -456,7 +460,7 @@ class _ResultsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeRepo = selectedEvent?.repoName ?? 'No repo selected';
+     
 
     return Column(
       children: [
@@ -494,14 +498,7 @@ class _ResultsSection extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        Text(
-                          activeRepo,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF111827),
-                          ),
-                        ),
+                       
                         if (errorMessage != null) ...[
                           const SizedBox(height: 10),
                           Text(
@@ -526,7 +523,7 @@ class _ResultsSection extends StatelessWidget {
                                   padding: const EdgeInsets.all(18),
                                   decoration: BoxDecoration(
                                     color: selected
-                                        ? const Color(0xFFF9FAFB)
+                                        ? const Color(0xFF111827)
                                         : Colors.white,
                                     borderRadius: BorderRadius.circular(18),
                                     border: Border.all(
@@ -538,27 +535,32 @@ class _ResultsSection extends StatelessWidget {
                                     children: [
                                       Text(
                                         event.repoName,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontWeight: FontWeight.w700,
-                                          color: Color(0xFF111827),
+                                          color: selected ? Colors.white : const Color(0xFF111827),
                                         ),
                                       ),
                                       const SizedBox(height: 10),
-                                      const Text(
-                                        'Recent work',
+                                      Text(
+                                        'Recent Work',
                                         style: TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
-                                          color: Color(0xFF6B7280),
+                                          color: selected ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
                                         ),
                                       ),
                                       const SizedBox(height: 8),
                                       ...event.commitMessages.take(3).map(
-                                            (message) => Padding(
-                                              padding: const EdgeInsets.only(bottom: 4),
-                                              child: Text('• $message'),
-                                            ),
-                                          ),
+                                      (message) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
+                                        child: Text(
+                                          '• $message',
+                                        style: TextStyle(
+                                          color: selected ? Colors.white : null,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                     ],
                                   ),
                                 ),
@@ -630,7 +632,7 @@ class _ResultsSection extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '$selectedPlatform draft',
+                        'Draft',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,

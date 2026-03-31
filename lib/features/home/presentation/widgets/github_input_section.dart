@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:buildlog/features/github_activity/models/github_event.dart';
 import 'package:buildlog/features/github_activity/services/github_activity_service.dart';
@@ -17,6 +18,7 @@ class GitHubInputSection extends StatefulWidget {
 
 class _GitHubInputSectionState extends State<GitHubInputSection> {
   final TextEditingController _controller = TextEditingController();
+  final Random _random = Random();
 
   String _mode = 'public';
   String _selectedPlatform = 'LinkedIn';
@@ -207,32 +209,59 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     }
   }
 
-  String _cleanCommitMessage(String message) {
-    var cleaned = message.trim();
+ String _cleanCommitMessage(String message) {
+  var cleaned = message.trim();
 
-    final prefixes = [
-      'feat:',
-      'fix:',
-      'refactor:',
-      'docs:',
-      'style:',
-      'test:',
-      'chore:',
-      'build:',
-      'perf:',
-      'ci:',
-    ];
+  final prefixes = [
+    'feat:',
+    'fix:',
+    'refactor:',
+    'docs:',
+    'style:',
+    'test:',
+    'chore:',
+    'build:',
+    'perf:',
+    'ci:',
+  ];
 
-    for (final prefix in prefixes) {
-      if (cleaned.toLowerCase().startsWith(prefix)) {
-        cleaned = cleaned.substring(prefix.length).trim();
-        break;
-      }
+  for (final prefix in prefixes) {
+    if (cleaned.toLowerCase().startsWith(prefix)) {
+      cleaned = cleaned.substring(prefix.length).trim();
+      break;
     }
-
-    if (cleaned.isEmpty) return 'made updates';
-    return cleaned[0].toUpperCase() + cleaned.substring(1);
   }
+
+  // 🔥 Normalize common verbs
+  final lower = cleaned.toLowerCase();
+
+  final verbMap = {
+    'add': 'added',
+    'adds': 'added',
+    'added': 'added',
+    'fix': 'fixed',
+    'fixed': 'fixed',
+    'update': 'updated',
+    'updated': 'updated',
+    'remove': 'removed',
+    'removed': 'removed',
+    'create': 'created',
+    'created': 'created',
+    'improve': 'improved',
+    'improved': 'improved',
+    'clean': 'cleaned',
+    'cleaned': 'cleaned',
+  };
+
+  for (final key in verbMap.keys) {
+    if (lower.startsWith('$key ')) {
+      return verbMap[key]! + cleaned.substring(key.length);
+    }
+  }
+
+  // fallback
+  return cleaned[0].toLowerCase() + cleaned.substring(1);
+}
 
   String _repoDisplayName() {
     final repoName = _selectedEvent?.repoName ?? '';
@@ -244,42 +273,65 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   }
 
   String _summaryForPost() {
-    final event = _selectedEvent;
+  final event = _selectedEvent;
 
-    if (event == null || event.commitMessages.isEmpty) {
-      return 'shipped another round of improvements';
-    }
-
-    final cleaned = event.commitMessages
-        .take(3)
-        .map(_cleanCommitMessage)
-        .toList();
-
-    if (cleaned.length == 1) return cleaned.first.toLowerCase();
-    if (cleaned.length == 2) {
-      return '${cleaned[0].toLowerCase()} and ${cleaned[1].toLowerCase()}';
-    }
-
-    return '${cleaned[0].toLowerCase()}, ${cleaned[1].toLowerCase()}, and ${cleaned[2].toLowerCase()}';
+  if (event == null || event.commitMessages.isEmpty) {
+    return 'made a round of improvements';
   }
 
-  String _generatedPost() {
+  final cleaned = event.commitMessages
+      .take(3)
+      .map(_cleanCommitMessage)
+      .toList();
+
+  if (cleaned.length == 1) return cleaned.first;
+  if (cleaned.length == 2) {
+    return '${cleaned[0]} and ${cleaned[1]}';
+  }
+
+  return '${cleaned[0]}, ${cleaned[1]}, and ${cleaned[2]}';
+}
+
+
+
+
+String _generatedPost() {
   final repoName = _repoDisplayName();
   final summary = _summaryForPost();
 
+  final linkedinTemplates = [
+    'Made more progress on $repoName today — $summary. I also kept refining the overall experience to make it cleaner and more intuitive.',
+    'Spent time improving $repoName today. I $summary and continued shaping the product into something smoother and more usable.',
+    'Another solid round of updates on $repoName today. I $summary and kept polishing the experience.',
+  ];
+
+  final xTemplates = [
+    'Worked on $repoName today — $summary. Still building. 🚀',
+    '$repoName update: $summary. More progress today.',
+    'Made progress on $repoName today — $summary. Still refining it.',
+  ];
+
+  final redditTemplates = [
+    'Made more progress on $repoName today. I $summary and kept improving the overall experience.',
+    'Worked on $repoName today and $summary. Still refining the flow and usability.',
+  ];
+
+  final discordTemplates = [
+    'Update on $repoName: I $summary.',
+    '$repoName progress today: I $summary.',
+  ];
+
+  String pick(List<String> options) => options[_random.nextInt(options.length)];
+
   switch (_selectedPlatform) {
     case 'LinkedIn':
-      return 'Made more progress on $repoName today. I $summary, and continued refining the overall experience to make it cleaner and more intuitive.\n\n#buildinpublic #webdevelopment #softwaredevelopment #productdevelopment #github #developers';
-
+      return '${pick(linkedinTemplates)}\n\n#BuildInPublic #WebDevelopment #SoftwareDevelopment #ProductDesign #GitHub';
     case 'X':
-      return 'Worked on $repoName today — $summary. Still building and refining. 🚀\n\n#buildinpublic #webdev #coding #devlife';
-
+      return '${pick(xTemplates)}\n\n#buildinpublic #webdev #coding #devlife';
     case 'Reddit':
-      return 'Made more progress on $repoName today. I $summary and kept improving how everything flows and feels from a user perspective.';
-
+      return pick(redditTemplates);
     case 'Discord':
-      return 'Update on $repoName: $summary. Still refining and improving the experience.';
-
+      return pick(discordTemplates);
     default:
       return 'Worked on $repoName today. I $summary.';
   }

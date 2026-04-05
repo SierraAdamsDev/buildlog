@@ -74,6 +74,12 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     await prefs.setString('github_token', token);
   }
 
+  Future<void> _clearGitHubToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    _githubToken = null;
+    await prefs.remove('github_token');
+  }
+
   Future<void> _loadPrivateActivity() async {
     if (_githubToken == null || _githubToken!.isEmpty) return;
 
@@ -101,9 +107,24 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     } catch (error) {
       if (!mounted) return;
 
-      setState(() {
-        _errorMessage = error.toString().replaceFirst('Exception: ', '');
-      });
+      final message = error.toString().replaceFirst('Exception: ', '');
+
+      if (message.contains('Status: 404') ||
+          message.contains('Status: 401') ||
+          message.contains('Status: 403')) {
+        await _clearGitHubToken();
+
+        setState(() {
+          _errorMessage =
+              'Your saved GitHub connection is no longer valid. Please reconnect GitHub.';
+          _events = [];
+          _selectedEvent = null;
+        });
+      } else {
+        setState(() {
+          _errorMessage = message;
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -229,7 +250,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     final redirectUri = Uri.encodeComponent(Uri.base.origin);
 
     final authUrl =
-    'https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=repo%20read:user%20user:email';
+        'https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=repo%20read:user%20user:email';
 
     final uri = Uri.parse(authUrl);
 

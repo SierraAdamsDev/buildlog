@@ -25,7 +25,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   bool _showResults = false;
   bool _isLoading = false;
   String? _errorMessage;
-  GitHubEvent? _selectedEvent;
+  List<GitHubEvent> _selectedEvents = [];
   List<GitHubEvent> _events = [];
   String? _githubToken;
 
@@ -88,7 +88,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       _showResults = true;
       _errorMessage = null;
       _events = [];
-      _selectedEvent = null;
+      _selectedEvents = [];
     });
 
     try {
@@ -99,7 +99,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
 
       setState(() {
         _events = events;
-        _selectedEvent = events.isNotEmpty ? events.first : null;
+        _selectedEvents = events.isNotEmpty ? [events.first] : [];
         _errorMessage = events.isEmpty
             ? 'GitHub connected, but no recent activity was found.'
             : null;
@@ -117,7 +117,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
           _errorMessage =
               'Your saved GitHub connection is no longer valid. Please reconnect GitHub.';
           _events = [];
-          _selectedEvent = null;
+          _selectedEvents = [];
         });
       } else {
         setState(() {
@@ -143,7 +143,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       _showResults = true;
       _errorMessage = null;
       _events = [];
-      _selectedEvent = null;
+      _selectedEvents = [];
     });
 
     try {
@@ -186,7 +186,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       _errorMessage = null;
       _showResults = false;
       _events = [];
-      _selectedEvent = null;
+      _selectedEvents = [];
     });
     _saveData();
   }
@@ -213,7 +213,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       _errorMessage = null;
       _showResults = true;
       _events = [];
-      _selectedEvent = null;
+      _selectedEvents = [];
     });
 
     await _saveData();
@@ -225,7 +225,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
 
       setState(() {
         _events = events;
-        _selectedEvent = events.isNotEmpty ? events.first : null;
+        _selectedEvents = events.isNotEmpty ? [events.first] : [];
         _errorMessage =
             events.isEmpty ? 'No recent public activity found.' : null;
       });
@@ -318,79 +318,101 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     return cleaned[0].toLowerCase() + cleaned.substring(1);
   }
 
-  String _repoDisplayName() {
-    final repoName = _selectedEvent?.repoName ?? '';
+String _repoDisplayName() {
+  if (_selectedEvents.isEmpty) return 'your project';
 
-    if (repoName.isEmpty) return 'your project';
-
-    final parts = repoName.split('/');
-    return parts.isNotEmpty ? parts.last : repoName;
+  if (_selectedEvents.length == 1) {
+    final repo = _selectedEvents.first.repoName.split('/').last;
+    return repo;
   }
 
-  String _summaryForPost() {
-    final event = _selectedEvent;
-
-    if (event == null || event.commitMessages.isEmpty) {
-      return 'made a round of improvements';
-    }
-
-    final cleaned = event.commitMessages.take(3).map(_cleanCommitMessage).toList();
-
-    if (cleaned.length == 1) return cleaned.first;
-    if (cleaned.length == 2) {
-      return '${cleaned[0]} and ${cleaned[1]}';
-    }
-
-    return '${cleaned[0]}, ${cleaned[1]}, and ${cleaned[2]}';
+  if (_selectedEvents.length == 2) {
+    final names = _selectedEvents
+        .map((e) => e.repoName.split('/').last)
+        .toList();
+    return '${names[0]} and ${names[1]}';
   }
 
-  String _capitalizeFirst(String text) {
-    if (text.isEmpty) return text;
-    return text[0].toUpperCase() + text.substring(1);
+  final names = _selectedEvents
+      .take(2)
+      .map((e) => e.repoName.split('/').last)
+      .toList();
+
+  return '${names[0]}, ${names[1]}, and more';
+}
+
+String _summaryForPost() {
+  if (_selectedEvents.isEmpty) {
+    return 'made a round of improvements';
   }
 
-  String _generatedPost() {
-    final repoName = _repoDisplayName();
-    final summary = _summaryForPost();
-    final capitalizedSummary = _capitalizeFirst(summary);
+  final messages = _selectedEvents
+      .expand((e) => e.commitMessages)
+      .take(5)
+      .map(_cleanCommitMessage)
+      .toSet()
+      .toList();
 
-    final linkedinTemplates = [
-      'Made more progress on $repoName today — $summary. I also kept refining the overall experience to make it cleaner and more intuitive.',
-      'Spent time improving $repoName today. $capitalizedSummary, and I continued shaping the product into something smoother and more usable.',
-      'Another solid round of updates on $repoName today. $capitalizedSummary, and I kept polishing the experience.',
-    ];
+  if (messages.isEmpty) return 'made updates';
 
-    final xTemplates = [
-      'Worked on $repoName today — $summary. Still building. 🚀',
-      '$repoName update: $capitalizedSummary. More progress today.',
-      'Made progress on $repoName today — $summary. Still refining it.',
-    ];
+  if (messages.length == 1) return messages.first;
+  if (messages.length == 2) return '${messages[0]} and ${messages[1]}';
 
-    final redditTemplates = [
-      'Made more progress on $repoName today. $capitalizedSummary, and I kept improving the overall experience.',
-      'Worked on $repoName today, and $summary. Still refining the flow and usability.',
-    ];
+  return '${messages[0]}, ${messages[1]}, and ${messages[2]}';
+}
 
-    final discordTemplates = [
-      'Update on $repoName: $summary.',
-      '$repoName progress today: $capitalizedSummary.',
-    ];
+String _capitalizeFirst(String text) {
+  if (text.isEmpty) return text;
+  return text[0].toUpperCase() + text.substring(1);
+}
 
-    String pick(List<String> options) => options[_random.nextInt(options.length)];
+String _generatedPost() {
+  final repoName = _repoDisplayName();
+  final summary = _summaryForPost();
+  final capitalizedSummary = _capitalizeFirst(summary);
 
-    switch (_selectedPlatform) {
-      case 'LinkedIn':
-        return '${pick(linkedinTemplates)}\n\n#BuildInPublic #WebDevelopment #SoftwareDevelopment #ProductDesign #GitHub';
-      case 'X':
-        return '${pick(xTemplates)}\n\n#buildinpublic #webdev #coding #devlife';
-      case 'Reddit':
-        return pick(redditTemplates);
-      case 'Discord':
-        return pick(discordTemplates);
-      default:
-        return 'Worked on $repoName today. $capitalizedSummary.';
-    }
+  final multi = _selectedEvents.length > 1;
+
+  final linkedinTemplates = [
+    multi
+        ? 'Made progress across $repoName today — $summary. Focused on refining and improving overall usability.'
+        : 'Made more progress on $repoName today — $summary. I also kept refining the overall experience.',
+  ];
+
+  final xTemplates = [
+    multi
+        ? 'Worked across $repoName today — $summary. Still building. 🚀'
+        : 'Worked on $repoName today — $summary. Still building. 🚀',
+  ];
+
+  final redditTemplates = [
+    multi
+        ? 'Made progress across $repoName today. $capitalizedSummary.'
+        : 'Worked on $repoName today. $capitalizedSummary.',
+  ];
+
+  final discordTemplates = [
+    multi
+        ? 'Update across $repoName: $summary.'
+        : 'Update on $repoName: $summary.',
+  ];
+
+  String pick(List<String> options) =>
+      options[_random.nextInt(options.length)];
+
+  switch (_selectedPlatform) {
+    case 'LinkedIn':
+      return '${pick(linkedinTemplates)}\n\n#BuildInPublic #WebDevelopment #SoftwareDevelopment #ProductDesign #GitHub';
+    case 'X':
+      return '${pick(xTemplates)}\n\n#buildinpublic #webdev #coding #devlife';
+    case 'Reddit':
+      return pick(redditTemplates);
+    case 'Discord':
+      return pick(discordTemplates);
+    default:
+      return 'Worked on $repoName today. $capitalizedSummary.';
   }
+}
 
   Future<void> _copyPost() async {
     await Clipboard.setData(
@@ -480,10 +502,16 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
             isLoading: _isLoading,
             errorMessage: _errorMessage,
             events: _events,
-            selectedEvent: _selectedEvent,
+            selectedEvents: _selectedEvents,
             onEventSelected: (event) {
               setState(() {
-                _selectedEvent = event;
+                if (_selectedEvents.contains(event)) {
+                  _selectedEvents.remove(event);
+                } else {
+                  if (_selectedEvents.length < 3) {
+                    _selectedEvents.add(event);
+                  }
+                }
               });
             },
             selectedPlatform: _selectedPlatform,
@@ -550,7 +578,7 @@ class _ResultsSection extends StatelessWidget {
   final bool isLoading;
   final String? errorMessage;
   final List<GitHubEvent> events;
-  final GitHubEvent? selectedEvent;
+  final List<GitHubEvent> selectedEvents;
   final ValueChanged<GitHubEvent> onEventSelected;
   final String selectedPlatform;
   final List<String> platforms;
@@ -562,7 +590,7 @@ class _ResultsSection extends StatelessWidget {
     required this.isLoading,
     required this.errorMessage,
     required this.events,
-    required this.selectedEvent,
+    required this.selectedEvents,
     required this.onEventSelected,
     required this.selectedPlatform,
     required this.platforms,
@@ -622,7 +650,7 @@ class _ResultsSection extends StatelessWidget {
                         const SizedBox(height: 18),
                         ...events.take(5).map(
                           (event) {
-                            final selected = selectedEvent == event;
+                            final selected = selectedEvents.contains(event);
 
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
@@ -688,7 +716,7 @@ class _ResultsSection extends StatelessWidget {
                       ],
                     ),
         ),
-        if (!isLoading && selectedEvent != null) ...[
+        if (!isLoading && selectedEvents.isNotEmpty) ...[
           const SizedBox(height: 20),
           Container(
             width: double.infinity,

@@ -15,7 +15,8 @@ class GitHubEvent {
     return GitHubEvent(
       repoName: repo['name']?.toString() ?? 'Unknown Repo',
       commitMessages: commits
-          .map((commit) => (commit as Map<String, dynamic>)['message']?.toString() ?? '')
+          .whereType<Map<String, dynamic>>()
+          .map((commit) => commit['message']?.toString().trim() ?? '')
           .where((message) => message.isNotEmpty)
           .toList(),
     );

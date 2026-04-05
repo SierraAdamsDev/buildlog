@@ -32,6 +32,7 @@ class GitHubActivityService {
         .whereType<Map<String, dynamic>>()
         .where((event) => event['type'] == 'PushEvent')
         .map(GitHubEvent.fromJson)
+        .where((event) => event.commitMessages.isNotEmpty)
         .toList();
 
     return pushEvents;
@@ -73,6 +74,7 @@ class GitHubActivityService {
         .whereType<Map<String, dynamic>>()
         .where((event) => event['type'] == 'PushEvent')
         .map(GitHubEvent.fromJson)
+        .where((event) => event.commitMessages.isNotEmpty)
         .toList();
 
     return pushEvents;

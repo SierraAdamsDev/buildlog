@@ -109,8 +109,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
 
       final message = error.toString().replaceFirst('Exception: ', '');
 
-      if (message.contains('Status: 404') ||
-          message.contains('Status: 401') ||
+      if (message.contains('Status: 401') ||
           message.contains('Status: 403')) {
         await _clearGitHubToken();
 

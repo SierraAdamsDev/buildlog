@@ -1,200 +1,80 @@
 import 'dart:convert';
-
 import 'package:http/http.dart' as http;
-
 import '../models/github_event.dart';
 
 class GitHubActivityService {
-  static const Map<String, String> _baseHeaders = {
-    'Accept': 'application/vnd.github+json',
-  };
+  static Map<String, String> _headers(String token) {
+    return {
+      'Accept': 'application/vnd.github+json',
+      'Authorization': 'Bearer $token',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
+  }
 
   static Future<List<GitHubEvent>> fetchPublicActivity(String username) async {
-    final pushEvents = await _fetchPublicPushEvents(username);
-
-    if (pushEvents.isNotEmpty) {
-      return pushEvents;
-    }
-
-    return _fetchPublicRepoCommits(username);
-  }
-
-  static Future<List<GitHubEvent>> fetchPrivateActivity(String token) async {
-    final pushEvents = await _fetchAuthenticatedPushEvents(token);
-
-    if (pushEvents.isNotEmpty) {
-      return pushEvents;
-    }
-
-    return _fetchAuthenticatedRepoCommits(token);
-  }
-
-  static Future<List<GitHubEvent>> _fetchPublicPushEvents(String username) async {
-    final uri = Uri.parse('https://api.github.com/users/$username/events/public');
-
-    final response = await http.get(uri, headers: _baseHeaders);
-
-    if (response.statusCode == 404) {
-      throw Exception('GitHub user not found.');
-    }
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load GitHub activity.');
-    }
-
-    final List<dynamic> data = jsonDecode(response.body) as List<dynamic>;
-
-    return data
-        .where((event) => event is Map<String, dynamic> && event['type'] == 'PushEvent')
-        .map((event) => GitHubEvent.fromJson(event as Map<String, dynamic>))
-        .where((event) => event.commitMessages.isNotEmpty)
-        .toList();
-  }
-
-  static Future<List<GitHubEvent>> _fetchAuthenticatedPushEvents(String token) async {
-    final uri = Uri.parse('https://api.github.com/user/events');
-
     final response = await http.get(
-      uri,
+      Uri.parse('https://api.github.com/users/$username/events/public?per_page=100'),
       headers: {
-        'Authorization': 'Bearer $token',
         'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
       },
     );
+
     if (response.statusCode != 200) {
       throw Exception(
-        'Failed to load private GitHub activity. Status: ${response.statusCode}. Body: ${response.body}',
+        'GitHub public activity failed. Status: ${response.statusCode}. Body: ${response.body}',
       );
     }
 
     final List<dynamic> data = jsonDecode(response.body) as List<dynamic>;
 
-    return data
-        .where((event) => event is Map<String, dynamic> && event['type'] == 'PushEvent')
-        .map((event) => GitHubEvent.fromJson(event as Map<String, dynamic>))
-        .where((event) => event.commitMessages.isNotEmpty)
+    final pushEvents = data
+        .whereType<Map<String, dynamic>>()
+        .where((event) => event['type'] == 'PushEvent')
+        .map(GitHubEvent.fromJson)
         .toList();
+
+    return pushEvents;
   }
 
-  static Future<List<GitHubEvent>> _fetchPublicRepoCommits(String username) async {
-    final reposUri = Uri.parse(
-      'https://api.github.com/users/$username/repos?sort=updated&per_page=5',
+  static Future<List<GitHubEvent>> fetchPrivateActivity(String accessToken) async {
+    final userResponse = await http.get(
+      Uri.parse('https://api.github.com/user'),
+      headers: _headers(accessToken),
     );
 
-    final reposResponse = await http.get(reposUri, headers: _baseHeaders);
-
-    if (reposResponse.statusCode == 404) {
-      throw Exception('GitHub user not found.');
-    }
-
-    if (reposResponse.statusCode != 200) {
+    if (userResponse.statusCode != 200) {
       throw Exception(
-        'Failed to load repositories from connected GitHub account. Status: ${reposResponse.statusCode}. Body: ${reposResponse.body}',
+        'GitHub user lookup failed. Status: ${userResponse.statusCode}. Body: ${userResponse.body}',
       );
     }
-    final List<dynamic> repos = jsonDecode(reposResponse.body) as List<dynamic>;
-    final List<GitHubEvent> results = [];
 
-    for (final repo in repos) {
-      final repoMap = repo as Map<String, dynamic>;
-      final fullName = repoMap['full_name']?.toString();
+    final userData = jsonDecode(userResponse.body) as Map<String, dynamic>;
+    final login = userData['login']?.toString();
 
-      if (fullName == null || fullName.isEmpty) continue;
-
-      final commitsUri = Uri.parse(
-        'https://api.github.com/repos/$fullName/commits?per_page=3',
-      );
-
-      final commitsResponse = await http.get(commitsUri, headers: _baseHeaders);
-
-      if (commitsResponse.statusCode != 200) continue;
-
-      final List<dynamic> commits = jsonDecode(commitsResponse.body) as List<dynamic>;
-
-      final messages = commits
-          .map((commit) {
-            final map = commit as Map<String, dynamic>;
-            final commitData = map['commit'] as Map<String, dynamic>? ?? {};
-            return commitData['message']?.toString() ?? '';
-          })
-          .where((message) => message.isNotEmpty)
-          .toList();
-
-      if (messages.isNotEmpty) {
-        results.add(
-          GitHubEvent(
-            repoName: fullName,
-            commitMessages: messages,
-          ),
-        );
-      }
+    if (login == null || login.isEmpty) {
+      throw Exception('Could not determine authenticated GitHub username.');
     }
 
-    return results;
-  }
-
-  static Future<List<GitHubEvent>> _fetchAuthenticatedRepoCommits(String token) async {
-    final reposUri = Uri.parse(
-      'https://api.github.com/user/repos?sort=updated&per_page=5',
+    final eventsResponse = await http.get(
+      Uri.parse('https://api.github.com/users/$login/events?per_page=100'),
+      headers: _headers(accessToken),
     );
 
-    final reposResponse = await http.get(
-      reposUri,
-      headers: {
-        ..._baseHeaders,
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    if (reposResponse.statusCode != 200) {
-      throw Exception('Failed to load repositories from connected GitHub account.');
+    if (eventsResponse.statusCode != 200) {
+      throw Exception(
+        'GitHub private activity failed. Status: ${eventsResponse.statusCode}. Body: ${eventsResponse.body}',
+      );
     }
 
-    final List<dynamic> repos = jsonDecode(reposResponse.body) as List<dynamic>;
-    final List<GitHubEvent> results = [];
+    final List<dynamic> data = jsonDecode(eventsResponse.body) as List<dynamic>;
 
-    for (final repo in repos) {
-      final repoMap = repo as Map<String, dynamic>;
-      final fullName = repoMap['full_name']?.toString();
-      final defaultBranch = repoMap['default_branch']?.toString() ?? 'main';
+    final pushEvents = data
+        .whereType<Map<String, dynamic>>()
+        .where((event) => event['type'] == 'PushEvent')
+        .map(GitHubEvent.fromJson)
+        .toList();
 
-      if (fullName == null || fullName.isEmpty) continue;
-
-      final commitsUri = Uri.parse(
-        'https://api.github.com/repos/$fullName/commits?sha=$defaultBranch&per_page=3',
-      );
-
-      final commitsResponse = await http.get(
-        commitsUri,
-        headers: {
-          ..._baseHeaders,
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (commitsResponse.statusCode != 200) continue;
-
-      final List<dynamic> commits = jsonDecode(commitsResponse.body) as List<dynamic>;
-
-      final messages = commits
-          .map((commit) {
-            final map = commit as Map<String, dynamic>;
-            final commitData = map['commit'] as Map<String, dynamic>? ?? {};
-            return commitData['message']?.toString() ?? '';
-          })
-          .where((message) => message.isNotEmpty)
-          .toList();
-
-      if (messages.isNotEmpty) {
-        results.add(
-          GitHubEvent(
-            repoName: fullName,
-            commitMessages: messages,
-          ),
-        );
-      }
-    }
-
-    return results;
+    return pushEvents;
   }
 }

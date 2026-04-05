@@ -22,12 +22,6 @@ class GitHubActivityService {
   }
 
   static Future<List<GitHubEvent>> fetchPrivateActivity(String accessToken) async {
-    final pushEvents = await _fetchPrivatePushEvents(accessToken);
-
-    if (pushEvents.isNotEmpty) {
-      return pushEvents;
-    }
-
     return _fetchPrivateRepoCommits(accessToken);
   }
 
@@ -44,28 +38,6 @@ class GitHubActivityService {
     if (response.statusCode != 200) {
       throw Exception(
         'GitHub public activity failed. Status: ${response.statusCode}. Body: ${response.body}',
-      );
-    }
-
-    final List<dynamic> data = jsonDecode(response.body) as List<dynamic>;
-
-    return data
-        .whereType<Map<String, dynamic>>()
-        .where((event) => event['type'] == 'PushEvent')
-        .map(GitHubEvent.fromJson)
-        .where((event) => event.commitMessages.isNotEmpty)
-        .toList();
-  }
-
-  static Future<List<GitHubEvent>> _fetchPrivatePushEvents(String accessToken) async {
-    final response = await http.get(
-      Uri.parse('https://api.github.com/user/events?per_page=100'),
-      headers: _headers(accessToken),
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception(
-        'GitHub private activity failed. Status: ${response.statusCode}. Body: ${response.body}',
       );
     }
 

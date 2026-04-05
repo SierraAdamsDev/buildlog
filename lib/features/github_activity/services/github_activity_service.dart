@@ -38,45 +38,27 @@ class GitHubActivityService {
     return pushEvents;
   }
 
-  static Future<List<GitHubEvent>> fetchPrivateActivity(String accessToken) async {
-    final userResponse = await http.get(
-      Uri.parse('https://api.github.com/user'),
-      headers: _headers(accessToken),
+ static Future<List<GitHubEvent>> fetchPrivateActivity(String accessToken) async {
+  final response = await http.get(
+    Uri.parse('https://api.github.com/user/events?per_page=100'),
+    headers: _headers(accessToken),
+  );
+
+  if (response.statusCode != 200) {
+    throw Exception(
+      'GitHub private activity failed. Status: ${response.statusCode}. Body: ${response.body}',
     );
-
-    if (userResponse.statusCode != 200) {
-      throw Exception(
-        'GitHub user lookup failed. Status: ${userResponse.statusCode}. Body: ${userResponse.body}',
-      );
-    }
-
-    final userData = jsonDecode(userResponse.body) as Map<String, dynamic>;
-    final login = userData['login']?.toString();
-
-    if (login == null || login.isEmpty) {
-      throw Exception('Could not determine authenticated GitHub username.');
-    }
-
-    final eventsResponse = await http.get(
-      Uri.parse('https://api.github.com/users/$login/events?per_page=100'),
-      headers: _headers(accessToken),
-    );
-
-    if (eventsResponse.statusCode != 200) {
-      throw Exception(
-        'GitHub private activity failed. Status: ${eventsResponse.statusCode}. Body: ${eventsResponse.body}',
-      );
-    }
-
-    final List<dynamic> data = jsonDecode(eventsResponse.body) as List<dynamic>;
-
-    final pushEvents = data
-        .whereType<Map<String, dynamic>>()
-        .where((event) => event['type'] == 'PushEvent')
-        .map(GitHubEvent.fromJson)
-        .where((event) => event.commitMessages.isNotEmpty)
-        .toList();
-
-    return pushEvents;
   }
+
+  final List<dynamic> data = jsonDecode(response.body) as List<dynamic>;
+
+  final pushEvents = data
+      .whereType<Map<String, dynamic>>()
+      .where((event) => event['type'] == 'PushEvent')
+      .map(GitHubEvent.fromJson)
+      .where((event) => event.commitMessages.isNotEmpty)
+      .toList();
+
+  return pushEvents;
+}
 }

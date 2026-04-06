@@ -477,12 +477,119 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     }
   }
 
+  int _themeBaseWeight(String themeKey) {
+    switch (themeKey) {
+      case 'features':
+        return 10;
+      case 'generation_logic':
+        return 9;
+      case 'auth':
+        return 9;
+      case 'data_flow':
+        return 8;
+      case 'bug_fixes':
+        return 8;
+      case 'shipping':
+        return 7;
+      case 'ui_polish':
+        return 6;
+      case 'refactor':
+        return 6;
+      case 'testing':
+        return 5;
+      case 'docs':
+        return 3;
+      default:
+        return 4;
+    }
+  }
+
+  int _messageWeight(String cleanedMessage, String themeKey) {
+    var score = _themeBaseWeight(themeKey);
+    final normalized = cleanedMessage.toLowerCase();
+
+    if (normalized.contains('crash') ||
+        normalized.contains('oauth') ||
+        normalized.contains('auth') ||
+        normalized.contains('login') ||
+        normalized.contains('security') ||
+        normalized.contains('token')) {
+      score += 4;
+    }
+
+    if (normalized.contains('generator') ||
+        normalized.contains('generation') ||
+        normalized.contains('summary') ||
+        normalized.contains('draft') ||
+        normalized.contains('output')) {
+      score += 3;
+    }
+
+    if (normalized.contains('responsive') ||
+        normalized.contains('desktop') ||
+        normalized.contains('mobile') ||
+        normalized.contains('layout')) {
+      score += 2;
+    }
+
+    if (normalized.contains('readme') || normalized.contains('docs')) {
+      score -= 1;
+    }
+
+    final wordCount = cleanedMessage.split(RegExp(r'\s+')).length;
+    if (wordCount >= 6) {
+      score += 1;
+    }
+
+    return score;
+  }
+
+  List<_CommitSignal> _extractTopSignals() {
+    final uniqueMessages = <String>{};
+    final signals = <_CommitSignal>[];
+
+    for (final event in _selectedEvents) {
+      final repoShortName = _repoShortName(event.repoName);
+
+      for (final rawMessage in event.commitMessages) {
+        final cleaned = _cleanCommitMessage(rawMessage);
+
+        if (cleaned.isEmpty || cleaned == 'made updates') continue;
+
+        final dedupeKey = '${repoShortName.toLowerCase()}::${cleaned.toLowerCase()}';
+        if (uniqueMessages.contains(dedupeKey)) continue;
+        uniqueMessages.add(dedupeKey);
+
+        final themeKey = _normalizeThemeKey(cleaned);
+        final weight = _messageWeight(cleaned, themeKey);
+
+        signals.add(
+          _CommitSignal(
+            repoName: repoShortName,
+            themeKey: themeKey,
+            cleanedMessage: cleaned,
+            weight: weight,
+          ),
+        );
+      }
+    }
+
+    signals.sort((a, b) {
+      final weightCompare = b.weight.compareTo(a.weight);
+      if (weightCompare != 0) return weightCompare;
+      return a.cleanedMessage.compareTo(b.cleanedMessage);
+    });
+
+    return signals;
+  }
+
   _WorkSummary _buildWorkSummary() {
     if (_selectedEvents.isEmpty) {
       return const _WorkSummary(
         repoLabel: 'your project',
         themeLabels: ['general improvements'],
         repoCount: 0,
+        topSignals: [],
       );
     }
 
@@ -491,28 +598,18 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
         .toSet()
         .toList();
 
-    final themeCounts = <String, int>{};
-    final uniqueMessages = <String>{};
+    final signals = _extractTopSignals();
+    final themeScores = <String, int>{};
 
-    for (final event in _selectedEvents) {
-      for (final rawMessage in event.commitMessages) {
-        final cleaned = _cleanCommitMessage(rawMessage);
-
-        if (cleaned.isEmpty || cleaned == 'made updates') continue;
-
-        final dedupeKey = cleaned.toLowerCase();
-        if (uniqueMessages.contains(dedupeKey)) continue;
-        uniqueMessages.add(dedupeKey);
-
-        final themeKey = _normalizeThemeKey(cleaned);
-        themeCounts[themeKey] = (themeCounts[themeKey] ?? 0) + 1;
-      }
+    for (final signal in signals) {
+      themeScores[signal.themeKey] =
+          (themeScores[signal.themeKey] ?? 0) + signal.weight;
     }
 
-    final sortedThemes = themeCounts.entries.toList()
+    final sortedThemes = themeScores.entries.toList()
       ..sort((a, b) {
-        final countCompare = b.value.compareTo(a.value);
-        if (countCompare != 0) return countCompare;
+        final scoreCompare = b.value.compareTo(a.value);
+        if (scoreCompare != 0) return scoreCompare;
         return a.key.compareTo(b.key);
       });
 
@@ -526,6 +623,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       themeLabels:
           topThemeLabels.isEmpty ? ['general improvements'] : topThemeLabels,
       repoCount: repoNames.length,
+      topSignals: signals.take(3).toList(),
     );
   }
 
@@ -548,18 +646,27 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     return 'Focused on $focus.';
   }
 
-  String _supportLine(_WorkSummary summary) {
-    final hasUi = summary.themeLabels.contains('responsive UI cleanup');
-    final hasGeneration = summary.themeLabels.contains('post generation logic');
-    final hasFeatures = summary.themeLabels.contains('new functionality');
-    final hasFixes = summary.themeLabels.contains('bug fixes');
+  String _impactLine(_WorkSummary summary) {
+    final topThemes = summary.themeLabels;
 
-    if (hasUi && hasGeneration) {
-      return 'Tightened the overall flow and made the experience feel cleaner.';
+    if (topThemes.contains('post generation logic')) {
+      return 'Made the output smarter and more useful instead of just dumping commit history.';
     }
 
-    if (hasFeatures && hasFixes) {
-      return 'Added useful functionality while cleaning up rough edges.';
+    if (topThemes.contains('auth flow updates')) {
+      return 'Tightened access and flow so the experience feels more reliable.';
+    }
+
+    if (topThemes.contains('data flow improvements')) {
+      return 'Cleaned up how data moves through the app so things feel more stable.';
+    }
+
+    if (topThemes.contains('responsive UI cleanup')) {
+      return 'Cleaned up the experience across screen sizes and tightened overall usability.';
+    }
+
+    if (topThemes.contains('new functionality')) {
+      return 'Added more real functionality instead of just surface-level polish.';
     }
 
     if (summary.repoCount > 1) {
@@ -567,6 +674,18 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     }
 
     return 'Still refining the experience and keeping things moving.';
+  }
+
+  String _detailLine(_WorkSummary summary) {
+    if (summary.topSignals.isEmpty) return '';
+
+    final strongest = summary.topSignals.first.cleanedMessage;
+    final cleanedStrongest =
+        strongest.isNotEmpty ? strongest[0].toUpperCase() + strongest.substring(1) : '';
+
+    if (cleanedStrongest.isEmpty) return '';
+
+    return 'Most notable update: $cleanedStrongest.';
   }
 
   String _generatedPost() {
@@ -577,24 +696,26 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
         return '''Worked on ${summary.repoLabel} today.
 
 ${_focusLine(summary)}
-${_supportLine(summary)}
+${_impactLine(summary)}
+${_detailLine(summary)}
 
 #BuildInPublic #SoftwareDevelopment #WebDevelopment #DevTools #GitHub''';
 
       case 'X':
-        return 'Worked on ${summary.repoLabel} today. ${_focusLine(summary).replaceAll('.', '')}. ${_supportLine(summary)} #buildinpublic #webdev #devtools';
+        return 'Worked on ${summary.repoLabel} today. ${_focusLine(summary).replaceAll('.', '')} ${_impactLine(summary)} #buildinpublic #webdev #devtools';
 
       case 'Reddit':
         return '''Update on ${summary.repoLabel}:
 
 ${_focusLine(summary)}
-${_supportLine(summary)}''';
+${_impactLine(summary)}
+${_detailLine(summary)}''';
 
       case 'Discord':
-        return 'Update on ${summary.repoLabel}: ${_focusLine(summary)} ${_supportLine(summary)}';
+        return 'Update on ${summary.repoLabel}: ${_focusLine(summary)} ${_impactLine(summary)} ${_detailLine(summary)}';
 
       default:
-        return 'Worked on ${summary.repoLabel} today. ${_focusLine(summary)} ${_supportLine(summary)}';
+        return 'Worked on ${summary.repoLabel} today. ${_focusLine(summary)} ${_impactLine(summary)} ${_detailLine(summary)}';
     }
   }
 
@@ -1172,10 +1293,26 @@ class _WorkSummary {
   final String repoLabel;
   final List<String> themeLabels;
   final int repoCount;
+  final List<_CommitSignal> topSignals;
 
   const _WorkSummary({
     required this.repoLabel,
     required this.themeLabels,
     required this.repoCount,
+    required this.topSignals,
+  });
+}
+
+class _CommitSignal {
+  final String repoName;
+  final String themeKey;
+  final String cleanedMessage;
+  final int weight;
+
+  const _CommitSignal({
+    required this.repoName,
+    required this.themeKey,
+    required this.cleanedMessage,
+    required this.weight,
   });
 }

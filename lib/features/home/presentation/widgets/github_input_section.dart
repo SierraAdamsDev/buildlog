@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:buildlog/features/github_activity/models/github_event.dart';
 import 'package:buildlog/features/github_activity/services/github_activity_service.dart';
@@ -18,16 +17,17 @@ class GitHubInputSection extends StatefulWidget {
 
 class _GitHubInputSectionState extends State<GitHubInputSection> {
   final TextEditingController _controller = TextEditingController();
-  final Random _random = Random();
 
   String _mode = 'public';
   String _selectedPlatform = 'LinkedIn';
   bool _showResults = false;
   bool _isLoading = false;
+  bool _showOlderActivity = false;
   String? _errorMessage;
   List<GitHubEvent> _selectedEvents = [];
   List<GitHubEvent> _events = [];
   String? _githubToken;
+  int _visibleEventCount = 5;
 
   final List<String> _platforms = [
     'LinkedIn',
@@ -80,6 +80,15 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     await prefs.remove('github_token');
   }
 
+  void _resetResultsState() {
+    _errorMessage = null;
+    _showResults = false;
+    _events = [];
+    _selectedEvents = [];
+    _visibleEventCount = 5;
+    _showOlderActivity = false;
+  }
+
   Future<void> _loadPrivateActivity() async {
     if (_githubToken == null || _githubToken!.isEmpty) return;
 
@@ -89,6 +98,8 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       _errorMessage = null;
       _events = [];
       _selectedEvents = [];
+      _visibleEventCount = 5;
+      _showOlderActivity = false;
     });
 
     try {
@@ -144,6 +155,8 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       _errorMessage = null;
       _events = [];
       _selectedEvents = [];
+      _visibleEventCount = 5;
+      _showOlderActivity = false;
     });
 
     try {
@@ -183,10 +196,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
   void _setMode(String mode) {
     setState(() {
       _mode = mode;
-      _errorMessage = null;
-      _showResults = false;
-      _events = [];
-      _selectedEvents = [];
+      _resetResultsState();
     });
     _saveData();
   }
@@ -214,6 +224,8 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       _showResults = true;
       _events = [];
       _selectedEvents = [];
+      _visibleEventCount = 5;
+      _showOlderActivity = false;
     });
 
     await _saveData();
@@ -284,6 +296,12 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       }
     }
 
+    cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ');
+    cleaned = cleaned.replaceAll(RegExp(r'\(#\d+\)'), '');
+    cleaned =
+        cleaned.replaceAll(RegExp(r'\bmerge\b.*$', caseSensitive: false), '');
+    cleaned = cleaned.trim();
+
     if (cleaned.isEmpty) return 'made updates';
 
     final verbMap = {
@@ -293,6 +311,7 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       'fix': 'fixed',
       'fixed': 'fixed',
       'update': 'updated',
+      'updates': 'updated',
       'updated': 'updated',
       'remove': 'removed',
       'removed': 'removed',
@@ -304,6 +323,8 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
       'cleaned': 'cleaned',
       'polish': 'polished',
       'polished': 'polished',
+      'refactor': 'refactored',
+      'refactored': 'refactored',
     };
 
     final parts = cleaned.split(RegExp(r'\s+'));
@@ -318,98 +339,262 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     return cleaned[0].toLowerCase() + cleaned.substring(1);
   }
 
+  String _repoShortName(String repoName) {
+    final parts = repoName.split('/');
+    return parts.isNotEmpty ? parts.last : repoName;
+  }
+
   String _repoDisplayName() {
     if (_selectedEvents.isEmpty) return 'your project';
 
-    if (_selectedEvents.length == 1) {
-      final repo = _selectedEvents.first.repoName.split('/').last;
-      return repo;
-    }
-
-    if (_selectedEvents.length == 2) {
-      final names =
-          _selectedEvents.map((e) => e.repoName.split('/').last).toList();
-      return '${names[0]} and ${names[1]}';
-    }
-
     final names = _selectedEvents
-        .take(2)
-        .map((e) => e.repoName.split('/').last)
+        .map((e) => _repoShortName(e.repoName))
+        .toSet()
         .toList();
+
+    if (names.length == 1) return names.first;
+    if (names.length == 2) return '${names[0]} and ${names[1]}';
 
     return '${names[0]}, ${names[1]}, and more';
   }
 
-  String _summaryForPost() {
-    if (_selectedEvents.isEmpty) {
-      return 'made a round of improvements';
+  String _normalizeThemeKey(String text) {
+    final normalized = text.toLowerCase();
+
+    if (normalized.contains('responsive') ||
+        normalized.contains('layout') ||
+        normalized.contains('spacing') ||
+        normalized.contains('padding') ||
+        normalized.contains('margin') ||
+        normalized.contains('mobile') ||
+        normalized.contains('desktop') ||
+        normalized.contains('ui') ||
+        normalized.contains('screen') ||
+        normalized.contains('theme') ||
+        normalized.contains('style')) {
+      return 'ui_polish';
     }
 
-    final messages = _selectedEvents
-        .expand((e) => e.commitMessages)
-        .take(5)
-        .map(_cleanCommitMessage)
+    if (normalized.contains('bug') ||
+        normalized.contains('error') ||
+        normalized.contains('crash') ||
+        normalized.contains('issue') ||
+        normalized.contains('broken') ||
+        normalized.contains('null') ||
+        normalized.contains('fix')) {
+      return 'bug_fixes';
+    }
+
+    if (normalized.contains('refactor') ||
+        normalized.contains('cleanup') ||
+        normalized.contains('clean up') ||
+        normalized.contains('restructure') ||
+        normalized.contains('organize')) {
+      return 'refactor';
+    }
+
+    if (normalized.contains('oauth') ||
+        normalized.contains('auth') ||
+        normalized.contains('login') ||
+        normalized.contains('token') ||
+        normalized.contains('permission')) {
+      return 'auth';
+    }
+
+    if (normalized.contains('api') ||
+        normalized.contains('fetch') ||
+        normalized.contains('request') ||
+        normalized.contains('response') ||
+        normalized.contains('service') ||
+        normalized.contains('endpoint')) {
+      return 'data_flow';
+    }
+
+    if (normalized.contains('generate') ||
+        normalized.contains('summary') ||
+        normalized.contains('post') ||
+        normalized.contains('draft') ||
+        normalized.contains('copy') ||
+        normalized.contains('output')) {
+      return 'generation_logic';
+    }
+
+    if (normalized.contains('deploy') ||
+        normalized.contains('build') ||
+        normalized.contains('release') ||
+        normalized.contains('netlify') ||
+        normalized.contains('config') ||
+        normalized.contains('environment')) {
+      return 'shipping';
+    }
+
+    if (normalized.contains('doc') ||
+        normalized.contains('readme') ||
+        normalized.contains('docs')) {
+      return 'docs';
+    }
+
+    if (normalized.contains('test') ||
+        normalized.contains('testing')) {
+      return 'testing';
+    }
+
+    if (normalized.contains('add') ||
+        normalized.contains('create') ||
+        normalized.contains('new') ||
+        normalized.contains('introduce') ||
+        normalized.contains('support')) {
+      return 'features';
+    }
+
+    return 'general_updates';
+  }
+
+  String _themeLabel(String themeKey) {
+    switch (themeKey) {
+      case 'ui_polish':
+        return 'responsive UI cleanup';
+      case 'bug_fixes':
+        return 'bug fixes';
+      case 'refactor':
+        return 'code cleanup and structure updates';
+      case 'auth':
+        return 'auth flow updates';
+      case 'data_flow':
+        return 'data flow improvements';
+      case 'generation_logic':
+        return 'post generation logic';
+      case 'shipping':
+        return 'build and deploy work';
+      case 'docs':
+        return 'documentation updates';
+      case 'testing':
+        return 'testing work';
+      case 'features':
+        return 'new functionality';
+      default:
+        return 'general improvements';
+    }
+  }
+
+  _WorkSummary _buildWorkSummary() {
+    if (_selectedEvents.isEmpty) {
+      return const _WorkSummary(
+        repoLabel: 'your project',
+        themeLabels: ['general improvements'],
+        repoCount: 0,
+      );
+    }
+
+    final repoNames = _selectedEvents
+        .map((e) => _repoShortName(e.repoName))
         .toSet()
         .toList();
 
-    if (messages.isEmpty) return 'made updates';
+    final themeCounts = <String, int>{};
+    final uniqueMessages = <String>{};
 
-    if (messages.length == 1) return messages.first;
-    if (messages.length == 2) return '${messages[0]} and ${messages[1]}';
+    for (final event in _selectedEvents) {
+      for (final rawMessage in event.commitMessages) {
+        final cleaned = _cleanCommitMessage(rawMessage);
 
-    return '${messages[0]}, ${messages[1]}, and ${messages[2]}';
+        if (cleaned.isEmpty || cleaned == 'made updates') continue;
+
+        final dedupeKey = cleaned.toLowerCase();
+        if (uniqueMessages.contains(dedupeKey)) continue;
+        uniqueMessages.add(dedupeKey);
+
+        final themeKey = _normalizeThemeKey(cleaned);
+        themeCounts[themeKey] = (themeCounts[themeKey] ?? 0) + 1;
+      }
+    }
+
+    final sortedThemes = themeCounts.entries.toList()
+      ..sort((a, b) {
+        final countCompare = b.value.compareTo(a.value);
+        if (countCompare != 0) return countCompare;
+        return a.key.compareTo(b.key);
+      });
+
+    final topThemeLabels = sortedThemes
+        .take(3)
+        .map((entry) => _themeLabel(entry.key))
+        .toList();
+
+    return _WorkSummary(
+      repoLabel: _repoDisplayName(),
+      themeLabels:
+          topThemeLabels.isEmpty ? ['general improvements'] : topThemeLabels,
+      repoCount: repoNames.length,
+    );
   }
 
-  String _capitalizeFirst(String text) {
-    if (text.isEmpty) return text;
-    return text[0].toUpperCase() + text.substring(1);
+  String _joinNatural(List<String> items) {
+    if (items.isEmpty) return '';
+    if (items.length == 1) return items.first;
+    if (items.length == 2) return '${items[0]} and ${items[1]}';
+
+    final allButLast = items.sublist(0, items.length - 1).join(', ');
+    return '$allButLast, and ${items.last}';
+  }
+
+  String _focusLine(_WorkSummary summary) {
+    final focus = _joinNatural(summary.themeLabels);
+
+    if (summary.repoCount > 1) {
+      return 'Focused on $focus across multiple projects.';
+    }
+
+    return 'Focused on $focus.';
+  }
+
+  String _supportLine(_WorkSummary summary) {
+    final hasUi = summary.themeLabels.contains('responsive UI cleanup');
+    final hasGeneration = summary.themeLabels.contains('post generation logic');
+    final hasFeatures = summary.themeLabels.contains('new functionality');
+    final hasFixes = summary.themeLabels.contains('bug fixes');
+
+    if (hasUi && hasGeneration) {
+      return 'Tightened the overall flow and made the experience feel cleaner.';
+    }
+
+    if (hasFeatures && hasFixes) {
+      return 'Added useful functionality while cleaning up rough edges.';
+    }
+
+    if (summary.repoCount > 1) {
+      return 'Still building, testing, and tightening things up.';
+    }
+
+    return 'Still refining the experience and keeping things moving.';
   }
 
   String _generatedPost() {
-    final repoName = _repoDisplayName();
-    final summary = _summaryForPost();
-    final capitalizedSummary = _capitalizeFirst(summary);
-
-    final multi = _selectedEvents.length > 1;
-
-    final linkedinTemplates = [
-      multi
-          ? 'Made progress across $repoName today — $summary. Focused on refining and improving overall usability.'
-          : 'Made more progress on $repoName today — $summary. I also kept refining the overall experience.',
-    ];
-
-    final xTemplates = [
-      multi
-          ? 'Worked across $repoName today — $summary. Still building. 🚀'
-          : 'Worked on $repoName today — $summary. Still building. 🚀',
-    ];
-
-    final redditTemplates = [
-      multi
-          ? 'Made progress across $repoName today. $capitalizedSummary.'
-          : 'Worked on $repoName today. $capitalizedSummary.',
-    ];
-
-    final discordTemplates = [
-      multi
-          ? 'Update across $repoName: $summary.'
-          : 'Update on $repoName: $summary.',
-    ];
-
-    String pick(List<String> options) =>
-        options[_random.nextInt(options.length)];
+    final summary = _buildWorkSummary();
 
     switch (_selectedPlatform) {
       case 'LinkedIn':
-        return '${pick(linkedinTemplates)}\n\n#BuildInPublic #WebDevelopment #SoftwareDevelopment #ProductDesign #GitHub';
+        return '''Worked on ${summary.repoLabel} today.
+
+${_focusLine(summary)}
+${_supportLine(summary)}
+
+#BuildInPublic #SoftwareDevelopment #WebDevelopment #DevTools #GitHub''';
+
       case 'X':
-        return '${pick(xTemplates)}\n\n#buildinpublic #webdev #coding #devlife';
+        return 'Worked on ${summary.repoLabel} today. ${_focusLine(summary).replaceAll('.', '')}. ${_supportLine(summary)} #buildinpublic #webdev #devtools';
+
       case 'Reddit':
-        return pick(redditTemplates);
+        return '''Update on ${summary.repoLabel}:
+
+${_focusLine(summary)}
+${_supportLine(summary)}''';
+
       case 'Discord':
-        return pick(discordTemplates);
+        return 'Update on ${summary.repoLabel}: ${_focusLine(summary)} ${_supportLine(summary)}';
+
       default:
-        return 'Worked on $repoName today. $capitalizedSummary.';
+        return 'Worked on ${summary.repoLabel} today. ${_focusLine(summary)} ${_supportLine(summary)}';
     }
   }
 
@@ -423,6 +608,38 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Copied $_selectedPlatform draft')),
     );
+  }
+
+  void _toggleEventSelection(GitHubEvent event) {
+    setState(() {
+      if (_selectedEvents.contains(event)) {
+        _selectedEvents.remove(event);
+      } else {
+        if (_selectedEvents.length < 3) {
+          _selectedEvents.add(event);
+        }
+      }
+    });
+  }
+
+  void _loadMoreEvents() {
+    setState(() {
+      _visibleEventCount += 5;
+    });
+  }
+
+  void _toggleOlderActivity() {
+    setState(() {
+      _showOlderActivity = !_showOlderActivity;
+      _visibleEventCount = 5;
+    });
+  }
+
+  bool _isRecentEvent(GitHubEvent event) {
+    if (event.createdAt == null) return true;
+
+    final difference = DateTime.now().difference(event.createdAt!);
+    return difference.inHours <= 48;
   }
 
   @override
@@ -509,23 +726,18 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
                 errorMessage: _errorMessage,
                 events: _events,
                 selectedEvents: _selectedEvents,
-                onEventSelected: (event) {
-                  setState(() {
-                    if (_selectedEvents.contains(event)) {
-                      _selectedEvents.remove(event);
-                    } else {
-                      if (_selectedEvents.length < 3) {
-                        _selectedEvents.add(event);
-                      }
-                    }
-                  });
-                },
+                onEventSelected: _toggleEventSelection,
                 selectedPlatform: _selectedPlatform,
                 platforms: _platforms,
                 onPlatformSelected: _selectPlatform,
                 generatedPost: _generatedPost(),
                 onCopy: _copyPost,
                 isMobile: isMobile,
+                visibleEventCount: _visibleEventCount,
+                onLoadMore: _loadMoreEvents,
+                showOlderActivity: _showOlderActivity,
+                onToggleOlderActivity: _toggleOlderActivity,
+                isRecentEvent: _isRecentEvent,
               ),
           ],
         );
@@ -631,6 +843,11 @@ class _ResultsSection extends StatelessWidget {
   final String generatedPost;
   final VoidCallback onCopy;
   final bool isMobile;
+  final int visibleEventCount;
+  final VoidCallback onLoadMore;
+  final bool showOlderActivity;
+  final VoidCallback onToggleOlderActivity;
+  final bool Function(GitHubEvent) isRecentEvent;
 
   const _ResultsSection({
     required this.isLoading,
@@ -644,11 +861,25 @@ class _ResultsSection extends StatelessWidget {
     required this.generatedPost,
     required this.onCopy,
     required this.isMobile,
+    required this.visibleEventCount,
+    required this.onLoadMore,
+    required this.showOlderActivity,
+    required this.onToggleOlderActivity,
+    required this.isRecentEvent,
   });
 
   @override
   Widget build(BuildContext context) {
     final cardPadding = isMobile ? 20.0 : 28.0;
+    final recentEvents = events.where(isRecentEvent).toList();
+    final olderEvents = events.where((event) => !isRecentEvent(event)).toList();
+
+    final displayEvents = showOlderActivity
+        ? [...recentEvents, ...olderEvents]
+        : recentEvents;
+
+    final visibleEvents = displayEvents.take(visibleEventCount).toList();
+    final canLoadMore = visibleEventCount < displayEvents.length;
 
     return Column(
       children: [
@@ -696,9 +927,33 @@ class _ResultsSection extends StatelessWidget {
                           ),
                           const SizedBox(height: 18),
                         ],
-                        ...events.take(5).map(
+                        if (recentEvents.isEmpty && olderEvents.isNotEmpty) ...[
+                          const Text(
+                            'No recent activity found. Older activity is available.',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF4B5563),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (recentEvents.isNotEmpty && olderEvents.isNotEmpty) ...[
+                          Text(
+                            showOlderActivity
+                                ? 'Showing recent and older activity'
+                                : 'Showing recent activity first',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        ...visibleEvents.map(
                           (event) {
                             final selected = selectedEvents.contains(event);
+                            final recent = isRecentEvent(event);
 
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
@@ -720,18 +975,47 @@ class _ResultsSection extends StatelessWidget {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        event.repoName,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: selected
-                                              ? Colors.white
-                                              : const Color(0xFF111827),
-                                        ),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              event.repoName,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                color: selected
+                                                    ? Colors.white
+                                                    : const Color(0xFF111827),
+                                              ),
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: selected
+                                                  ? Colors.white12
+                                                  : const Color(0xFFF3F4F6),
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              recent ? 'Recent' : 'Older',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: selected
+                                                    ? Colors.white
+                                                    : const Color(0xFF4B5563),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 10),
                                       Text(
-                                        'Recent Work',
+                                        'What changed',
                                         style: TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
@@ -763,6 +1047,28 @@ class _ResultsSection extends StatelessWidget {
                             );
                           },
                         ),
+                        if (olderEvents.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Center(
+                            child: TextButton(
+                              onPressed: onToggleOlderActivity,
+                              child: Text(
+                                showOlderActivity
+                                    ? 'Hide Older Activity'
+                                    : 'Show Older Activity',
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (canLoadMore) ...[
+                          const SizedBox(height: 4),
+                          Center(
+                            child: TextButton(
+                              onPressed: onLoadMore,
+                              child: const Text('Load more'),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
         ),
@@ -860,4 +1166,16 @@ class _ResultsSection extends StatelessWidget {
       ],
     );
   }
+}
+
+class _WorkSummary {
+  final String repoLabel;
+  final List<String> themeLabels;
+  final int repoCount;
+
+  const _WorkSummary({
+    required this.repoLabel,
+    required this.themeLabels,
+    required this.repoCount,
+  });
 }

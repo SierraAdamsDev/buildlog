@@ -11,6 +11,10 @@ class GitHubActivityService {
     };
   }
 
+  // =============================
+  // PUBLIC ENTRY POINTS
+  // =============================
+
   static Future<List<GitHubEvent>> fetchPublicActivity(String username) async {
     final pushEvents = await _fetchPublicPushEvents(username);
 
@@ -25,6 +29,10 @@ class GitHubActivityService {
     return _fetchPrivateRepoCommits(accessToken);
   }
 
+  // =============================
+  // CORE FETCHERS
+  // =============================
+
   static Future<List<GitHubEvent>> _fetchPublicPushEvents(String username) async {
     final response = await http.get(
       Uri.parse('https://api.github.com/users/$username/events/public?per_page=100'),
@@ -36,19 +44,21 @@ class GitHubActivityService {
     }
 
     if (response.statusCode != 200) {
-      throw Exception(
-        'GitHub public activity failed. Status: ${response.statusCode}. Body: ${response.body}',
-      );
+      throw Exception('GitHub public activity failed.');
     }
 
-    final List<dynamic> data = jsonDecode(response.body) as List<dynamic>;
+    final List<dynamic> data = jsonDecode(response.body);
 
-    return data
+    final events = data
         .whereType<Map<String, dynamic>>()
         .where((event) => event['type'] == 'PushEvent')
         .map(GitHubEvent.fromJson)
         .where((event) => event.commitMessages.isNotEmpty)
+        .map(_cleanEvent)
+        .where((event) => event.commitMessages.isNotEmpty)
         .toList();
+
+    return _sortEvents(events);
   }
 
   static Future<List<GitHubEvent>> _fetchPublicRepoCommits(String username) async {
@@ -62,12 +72,10 @@ class GitHubActivityService {
     }
 
     if (reposResponse.statusCode != 200) {
-      throw Exception(
-        'Failed to load public repositories. Status: ${reposResponse.statusCode}. Body: ${reposResponse.body}',
-      );
+      throw Exception('Failed to load public repositories.');
     }
 
-    final List<dynamic> repos = jsonDecode(reposResponse.body) as List<dynamic>;
+    final List<dynamic> repos = jsonDecode(reposResponse.body);
     final List<GitHubEvent> results = [];
 
     for (final repo in repos.whereType<Map<String, dynamic>>()) {
@@ -81,7 +89,7 @@ class GitHubActivityService {
 
       if (commitsResponse.statusCode != 200) continue;
 
-      final List<dynamic> commits = jsonDecode(commitsResponse.body) as List<dynamic>;
+      final List<dynamic> commits = jsonDecode(commitsResponse.body);
 
       final messages = commits
           .whereType<Map<String, dynamic>>()
@@ -89,7 +97,10 @@ class GitHubActivityService {
             final commitData = commit['commit'] as Map<String, dynamic>? ?? {};
             return commitData['message']?.toString().trim() ?? '';
           })
-          .where((message) => message.isNotEmpty)
+          .map(_cleanCommitMessage)
+          .where((m) => m.isNotEmpty)
+          .toSet()
+          .take(3)
           .toList();
 
       if (messages.isNotEmpty) {
@@ -97,12 +108,13 @@ class GitHubActivityService {
           GitHubEvent(
             repoName: fullName,
             commitMessages: messages,
+            createdAt: DateTime.now(), // fallback
           ),
         );
       }
     }
 
-    return results;
+    return _sortEvents(results);
   }
 
   static Future<List<GitHubEvent>> _fetchPrivateRepoCommits(String accessToken) async {
@@ -112,12 +124,10 @@ class GitHubActivityService {
     );
 
     if (reposResponse.statusCode != 200) {
-      throw Exception(
-        'Failed to load private repositories. Status: ${reposResponse.statusCode}. Body: ${reposResponse.body}',
-      );
+      throw Exception('Failed to load private repositories.');
     }
 
-    final List<dynamic> repos = jsonDecode(reposResponse.body) as List<dynamic>;
+    final List<dynamic> repos = jsonDecode(reposResponse.body);
     final List<GitHubEvent> results = [];
 
     for (final repo in repos.whereType<Map<String, dynamic>>()) {
@@ -135,7 +145,7 @@ class GitHubActivityService {
 
       if (commitsResponse.statusCode != 200) continue;
 
-      final List<dynamic> commits = jsonDecode(commitsResponse.body) as List<dynamic>;
+      final List<dynamic> commits = jsonDecode(commitsResponse.body);
 
       final messages = commits
           .whereType<Map<String, dynamic>>()
@@ -143,7 +153,10 @@ class GitHubActivityService {
             final commitData = commit['commit'] as Map<String, dynamic>? ?? {};
             return commitData['message']?.toString().trim() ?? '';
           })
-          .where((message) => message.isNotEmpty)
+          .map(_cleanCommitMessage)
+          .where((m) => m.isNotEmpty)
+          .toSet()
+          .take(3)
           .toList();
 
       if (messages.isNotEmpty) {
@@ -151,11 +164,56 @@ class GitHubActivityService {
           GitHubEvent(
             repoName: fullName,
             commitMessages: messages,
+            createdAt: DateTime.now(), // fallback
           ),
         );
       }
     }
 
-    return results;
+    return _sortEvents(results);
+  }
+
+  // =============================
+  // CLEANING
+  // =============================
+
+  static GitHubEvent _cleanEvent(GitHubEvent event) {
+    final cleanedMessages = event.commitMessages
+        .map(_cleanCommitMessage)
+        .where((m) => m.isNotEmpty)
+        .toSet()
+        .take(3)
+        .toList();
+
+    return GitHubEvent(
+      repoName: event.repoName,
+      commitMessages: cleanedMessages,
+      createdAt: event.createdAt,
+    );
+  }
+
+  static String _cleanCommitMessage(String message) {
+    var cleaned = message.trim();
+
+    if (cleaned.toLowerCase().startsWith('merge')) return '';
+
+    cleaned = cleaned.replaceAll(RegExp(r'\(#\d+\)'), '');
+    cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    return cleaned;
+  }
+
+  // =============================
+  // SORTING (NEW)
+  // =============================
+
+  static List<GitHubEvent> _sortEvents(List<GitHubEvent> events) {
+    events.sort((a, b) {
+      final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bTime.compareTo(aTime);
+    });
+
+    return events;
   }
 }

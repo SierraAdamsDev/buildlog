@@ -318,101 +318,100 @@ class _GitHubInputSectionState extends State<GitHubInputSection> {
     return cleaned[0].toLowerCase() + cleaned.substring(1);
   }
 
-String _repoDisplayName() {
-  if (_selectedEvents.isEmpty) return 'your project';
+  String _repoDisplayName() {
+    if (_selectedEvents.isEmpty) return 'your project';
 
-  if (_selectedEvents.length == 1) {
-    final repo = _selectedEvents.first.repoName.split('/').last;
-    return repo;
-  }
+    if (_selectedEvents.length == 1) {
+      final repo = _selectedEvents.first.repoName.split('/').last;
+      return repo;
+    }
 
-  if (_selectedEvents.length == 2) {
+    if (_selectedEvents.length == 2) {
+      final names =
+          _selectedEvents.map((e) => e.repoName.split('/').last).toList();
+      return '${names[0]} and ${names[1]}';
+    }
+
     final names = _selectedEvents
+        .take(2)
         .map((e) => e.repoName.split('/').last)
         .toList();
-    return '${names[0]} and ${names[1]}';
+
+    return '${names[0]}, ${names[1]}, and more';
   }
 
-  final names = _selectedEvents
-      .take(2)
-      .map((e) => e.repoName.split('/').last)
-      .toList();
+  String _summaryForPost() {
+    if (_selectedEvents.isEmpty) {
+      return 'made a round of improvements';
+    }
 
-  return '${names[0]}, ${names[1]}, and more';
-}
+    final messages = _selectedEvents
+        .expand((e) => e.commitMessages)
+        .take(5)
+        .map(_cleanCommitMessage)
+        .toSet()
+        .toList();
 
-String _summaryForPost() {
-  if (_selectedEvents.isEmpty) {
-    return 'made a round of improvements';
+    if (messages.isEmpty) return 'made updates';
+
+    if (messages.length == 1) return messages.first;
+    if (messages.length == 2) return '${messages[0]} and ${messages[1]}';
+
+    return '${messages[0]}, ${messages[1]}, and ${messages[2]}';
   }
 
-  final messages = _selectedEvents
-      .expand((e) => e.commitMessages)
-      .take(5)
-      .map(_cleanCommitMessage)
-      .toSet()
-      .toList();
-
-  if (messages.isEmpty) return 'made updates';
-
-  if (messages.length == 1) return messages.first;
-  if (messages.length == 2) return '${messages[0]} and ${messages[1]}';
-
-  return '${messages[0]}, ${messages[1]}, and ${messages[2]}';
-}
-
-String _capitalizeFirst(String text) {
-  if (text.isEmpty) return text;
-  return text[0].toUpperCase() + text.substring(1);
-}
-
-String _generatedPost() {
-  final repoName = _repoDisplayName();
-  final summary = _summaryForPost();
-  final capitalizedSummary = _capitalizeFirst(summary);
-
-  final multi = _selectedEvents.length > 1;
-
-  final linkedinTemplates = [
-    multi
-        ? 'Made progress across $repoName today — $summary. Focused on refining and improving overall usability.'
-        : 'Made more progress on $repoName today — $summary. I also kept refining the overall experience.',
-  ];
-
-  final xTemplates = [
-    multi
-        ? 'Worked across $repoName today — $summary. Still building. 🚀'
-        : 'Worked on $repoName today — $summary. Still building. 🚀',
-  ];
-
-  final redditTemplates = [
-    multi
-        ? 'Made progress across $repoName today. $capitalizedSummary.'
-        : 'Worked on $repoName today. $capitalizedSummary.',
-  ];
-
-  final discordTemplates = [
-    multi
-        ? 'Update across $repoName: $summary.'
-        : 'Update on $repoName: $summary.',
-  ];
-
-  String pick(List<String> options) =>
-      options[_random.nextInt(options.length)];
-
-  switch (_selectedPlatform) {
-    case 'LinkedIn':
-      return '${pick(linkedinTemplates)}\n\n#BuildInPublic #WebDevelopment #SoftwareDevelopment #ProductDesign #GitHub';
-    case 'X':
-      return '${pick(xTemplates)}\n\n#buildinpublic #webdev #coding #devlife';
-    case 'Reddit':
-      return pick(redditTemplates);
-    case 'Discord':
-      return pick(discordTemplates);
-    default:
-      return 'Worked on $repoName today. $capitalizedSummary.';
+  String _capitalizeFirst(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
   }
-}
+
+  String _generatedPost() {
+    final repoName = _repoDisplayName();
+    final summary = _summaryForPost();
+    final capitalizedSummary = _capitalizeFirst(summary);
+
+    final multi = _selectedEvents.length > 1;
+
+    final linkedinTemplates = [
+      multi
+          ? 'Made progress across $repoName today — $summary. Focused on refining and improving overall usability.'
+          : 'Made more progress on $repoName today — $summary. I also kept refining the overall experience.',
+    ];
+
+    final xTemplates = [
+      multi
+          ? 'Worked across $repoName today — $summary. Still building. 🚀'
+          : 'Worked on $repoName today — $summary. Still building. 🚀',
+    ];
+
+    final redditTemplates = [
+      multi
+          ? 'Made progress across $repoName today. $capitalizedSummary.'
+          : 'Worked on $repoName today. $capitalizedSummary.',
+    ];
+
+    final discordTemplates = [
+      multi
+          ? 'Update across $repoName: $summary.'
+          : 'Update on $repoName: $summary.',
+    ];
+
+    String pick(List<String> options) =>
+        options[_random.nextInt(options.length)];
+
+    switch (_selectedPlatform) {
+      case 'LinkedIn':
+        return '${pick(linkedinTemplates)}\n\n#BuildInPublic #WebDevelopment #SoftwareDevelopment #ProductDesign #GitHub';
+      case 'X':
+        return '${pick(xTemplates)}\n\n#buildinpublic #webdev #coding #devlife';
+      case 'Reddit':
+        return pick(redditTemplates);
+      case 'Discord':
+        return pick(discordTemplates);
+      default:
+        return 'Worked on $repoName today. $capitalizedSummary.';
+    }
+  }
 
   Future<void> _copyPost() async {
     await Clipboard.setData(
@@ -434,93 +433,103 @@ String _generatedPost() {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'GitHub Activity',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 700;
+        final cardPadding = isMobile ? 20.0 : 28.0;
+
+        return Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(cardPadding),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
-              const SizedBox(height: 12),
-              _ModeCards(
-                mode: _mode,
-                onModeChange: _setMode,
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _controller,
-                onChanged: (_) => _saveData(),
-                decoration: InputDecoration(
-                  hintText: 'Enter GitHub username',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ElevatedButton(
-                    onPressed: _mode == 'public' && !_isLoading
-                        ? _handlePublicLoad
-                        : null,
-                    child: Text(
-                      _isLoading ? 'Loading...' : 'Load Public Activity',
+                  const Text(
+                    'GitHub Activity',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  _ModeCards(
+                    mode: _mode,
+                    onModeChange: _setMode,
+                    isMobile: isMobile,
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: _controller,
+                    onChanged: (_) => _saveData(),
+                    decoration: InputDecoration(
+                      hintText: 'Enter GitHub username',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  OutlinedButton(
-                    onPressed: _mode == 'private' && !_isLoading
-                        ? ((_githubToken == null || _githubToken!.isEmpty)
-                            ? _handleConnectGitHub
-                            : _loadPrivateActivity)
-                        : null,
-                    child: Text(
-                      (_githubToken != null && _githubToken!.isNotEmpty)
-                          ? 'Load Private Activity'
-                          : 'Connect GitHub',
-                    ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      ElevatedButton(
+                        onPressed: _mode == 'public' && !_isLoading
+                            ? _handlePublicLoad
+                            : null,
+                        child: Text(
+                          _isLoading ? 'Loading...' : 'Load Public Activity',
+                        ),
+                      ),
+                      OutlinedButton(
+                        onPressed: _mode == 'private' && !_isLoading
+                            ? ((_githubToken == null || _githubToken!.isEmpty)
+                                ? _handleConnectGitHub
+                                : _loadPrivateActivity)
+                            : null,
+                        child: Text(
+                          (_githubToken != null && _githubToken!.isNotEmpty)
+                              ? 'Load Private Activity'
+                              : 'Connect GitHub',
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        if (_showResults)
-          _ResultsSection(
-            isLoading: _isLoading,
-            errorMessage: _errorMessage,
-            events: _events,
-            selectedEvents: _selectedEvents,
-            onEventSelected: (event) {
-              setState(() {
-                if (_selectedEvents.contains(event)) {
-                  _selectedEvents.remove(event);
-                } else {
-                  if (_selectedEvents.length < 3) {
-                    _selectedEvents.add(event);
-                  }
-                }
-              });
-            },
-            selectedPlatform: _selectedPlatform,
-            platforms: _platforms,
-            onPlatformSelected: _selectPlatform,
-            generatedPost: _generatedPost(),
-            onCopy: _copyPost,
-          ),
-      ],
+            ),
+            const SizedBox(height: 20),
+            if (_showResults)
+              _ResultsSection(
+                isLoading: _isLoading,
+                errorMessage: _errorMessage,
+                events: _events,
+                selectedEvents: _selectedEvents,
+                onEventSelected: (event) {
+                  setState(() {
+                    if (_selectedEvents.contains(event)) {
+                      _selectedEvents.remove(event);
+                    } else {
+                      if (_selectedEvents.length < 3) {
+                        _selectedEvents.add(event);
+                      }
+                    }
+                  });
+                },
+                selectedPlatform: _selectedPlatform,
+                platforms: _platforms,
+                onPlatformSelected: _selectPlatform,
+                generatedPost: _generatedPost(),
+                onCopy: _copyPost,
+                isMobile: isMobile,
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -528,48 +537,84 @@ String _generatedPost() {
 class _ModeCards extends StatelessWidget {
   final String mode;
   final Function(String) onModeChange;
+  final bool isMobile;
 
   const _ModeCards({
     required this.mode,
     required this.onModeChange,
+    required this.isMobile,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (isMobile) {
+      return Column(
+        children: [
+          _ModeCard(
+            label: 'Public Mode',
+            selected: mode == 'public',
+            onTap: () => onModeChange('public'),
+          ),
+          const SizedBox(height: 10),
+          _ModeCard(
+            label: 'Private Mode',
+            selected: mode == 'private',
+            onTap: () => onModeChange('private'),
+          ),
+        ],
+      );
+    }
+
     return Row(
       children: [
         Expanded(
-          child: GestureDetector(
+          child: _ModeCard(
+            label: 'Public Mode',
+            selected: mode == 'public',
             onTap: () => onModeChange('public'),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: mode == 'public'
-                    ? const Color(0xFFE5E7EB)
-                    : Colors.white,
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: const Text('Public Mode'),
-            ),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: GestureDetector(
+          child: _ModeCard(
+            label: 'Private Mode',
+            selected: mode == 'private',
             onTap: () => onModeChange('private'),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: mode == 'private'
-                    ? const Color(0xFFE5E7EB)
-                    : Colors.white,
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: const Text('Private Mode'),
-            ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ModeCard extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ModeCard({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFE5E7EB) : Colors.white,
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+        ),
+      ),
     );
   }
 }
@@ -585,6 +630,7 @@ class _ResultsSection extends StatelessWidget {
   final ValueChanged<String> onPlatformSelected;
   final String generatedPost;
   final VoidCallback onCopy;
+  final bool isMobile;
 
   const _ResultsSection({
     required this.isLoading,
@@ -597,15 +643,18 @@ class _ResultsSection extends StatelessWidget {
     required this.onPlatformSelected,
     required this.generatedPost,
     required this.onCopy,
+    required this.isMobile,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cardPadding = isMobile ? 20.0 : 28.0;
+
     return Column(
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(28),
+          padding: EdgeInsets.all(cardPadding),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
@@ -638,7 +687,6 @@ class _ResultsSection extends StatelessWidget {
                         ),
                         const SizedBox(height: 18),
                         if (errorMessage != null) ...[
-                          const SizedBox(height: 10),
                           Text(
                             errorMessage!,
                             style: const TextStyle(
@@ -646,8 +694,8 @@ class _ResultsSection extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
+                          const SizedBox(height: 18),
                         ],
-                        const SizedBox(height: 18),
                         ...events.take(5).map(
                           (event) {
                             final selected = selectedEvents.contains(event);
@@ -669,7 +717,8 @@ class _ResultsSection extends StatelessWidget {
                                     ),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         event.repoName,
@@ -694,8 +743,9 @@ class _ResultsSection extends StatelessWidget {
                                       const SizedBox(height: 8),
                                       ...event.commitMessages.take(3).map(
                                             (message) => Padding(
-                                              padding:
-                                                  const EdgeInsets.only(bottom: 4),
+                                              padding: const EdgeInsets.only(
+                                                bottom: 4,
+                                              ),
                                               child: Text(
                                                 '• $message',
                                                 style: TextStyle(
@@ -720,7 +770,7 @@ class _ResultsSection extends StatelessWidget {
           const SizedBox(height: 20),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(28),
+            padding: EdgeInsets.all(cardPadding),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(24),

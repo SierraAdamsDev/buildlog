@@ -1,81 +1,115 @@
 # BuildLog
 
-Turn your GitHub activity into clean, shareable updates.
+Turn GitHub activity into clean, shareable developer updates.
 
-BuildLog helps developers turn real work into content for platforms like LinkedIn, X (Twitter), Reddit, and Discord — without relying on AI. It uses structured logic and real GitHub activity to generate consistent, usable post drafts.
+BuildLog helps developers turn real work into usable content for platforms like LinkedIn, X, Reddit, and Discord without exposing private repos or relying on generic post templates. It uses structured logic, activity scoring, and GitHub data to turn messy commit history into clearer public-facing updates.
 
 ---
 
-## 🚀 Features
+## 🚀 What It Does
 
-### V1
-- GitHub username input for public activity
-- GitHub login/connect flow for private activity (OAuth)
-- GitHub API integration for real activity data
-- Platform-ready post generation (LinkedIn, X, Reddit, Discord)
-- Clean, responsive Flutter web UI
-- Local persistence (username, mode, selected platform)
-- Copy-to-clipboard post drafts
+BuildLog helps with the annoying part of building in public:
 
-### V2
-- Direct platform integrations:
-  - Discord
-  - X (Twitter)
-  - Reddit
+- turning GitHub activity into something worth posting
+- reducing commit noise
+- highlighting recent work first
+- keeping older history available when needed
+- generating platform-ready drafts without exposing private work
+
+Instead of dumping raw commits into a post, BuildLog pulls activity, cleans it up, prioritizes meaningful signals, and generates a more usable summary.
+
+---
+
+## ✨ Current Features
+
+- Public GitHub activity lookup by username
+- Private GitHub activity via OAuth
+- Recent activity prioritized by recency
+- Expandable older activity history
+- Progressive loading for larger activity lists
+- Commit cleanup and deduplication
+- Theme grouping for work types like UI, auth, fixes, generation logic, and more
+- Lightweight signal scoring to prioritize more meaningful work
+- Platform-ready draft generation for:
   - LinkedIn
-- Browser extension for quick post generation
-- Saved drafts
-- Platform-specific formatting improvements
+  - X
+  - Reddit
+  - Discord
+- Responsive Flutter web interface
+- Local persistence for username, mode, selected platform, and token
+- Copy-to-clipboard post output
+
+---
+
+## 🧠 How the Logic Works
+
+BuildLog does more than reformat commit messages.
+
+### Activity processing
+- pulls recent GitHub activity
+- filters noisy or less useful commit data
+- cleans and deduplicates commit messages
+- sorts activity with recent work first
+
+### Summary generation
+- classifies commit messages into work themes
+- scores stronger signals higher than low-value updates
+- prioritizes the most meaningful work
+- generates a cleaner summary instead of a raw commit dump
+
+This keeps the output more useful for developers who want to share progress without sounding robotic or exposing internal details.
 
 ---
 
 ## 🧰 Tech Stack
 
-- **Frontend:** Flutter (Web)
-- **Backend:** Netlify Functions (Serverless)
-- **APIs:** GitHub REST API
+- **Frontend:** Flutter Web
+- **Backend:** Netlify Functions
+- **API:** GitHub REST API
 - **Auth:** GitHub OAuth
+- **State/Persistence:** Shared Preferences
+- **Logic Layer:** structured summarization + lightweight scoring system
 
 ---
 
 ## ⚙️ How It Works
 
-1. Enter a GitHub username (public mode) or connect your GitHub account (private mode)
-2. BuildLog fetches recent activity (push events)
-3. Commit messages are cleaned and structured
-4. A platform-specific post is generated
-5. Copy and share anywhere
+1. Enter a GitHub username in public mode or connect GitHub in private mode  
+2. BuildLog fetches recent activity  
+3. Commit messages are cleaned, deduplicated, and grouped  
+4. Signals are scored to prioritize stronger updates  
+5. A platform-specific draft is generated  
+6. Copy and share anywhere  
 
 ---
 
-## 🛠️ Getting Started
+## 🌐 Deployment
 
-### Prerequisites
-- Flutter installed
-- GitHub account
-- Netlify account (for OAuth functions)
+BuildLog is set up for deployment on Netlify.
 
-### Run locally
-
-```powershell
-flutter pub get
-flutter run -d chrome
-```
+- Update GitHub OAuth callback URLs to match your deployed domain  
+- Store OAuth credentials in Netlify environment variables  
+- Rebuild and redeploy after updates  
 
 ---
 
 ## 🧭 Roadmap
 
-### V1 (Current Focus)
-- Public GitHub activity integration
-- Private GitHub OAuth connection
-- Clean UI and post generation
-- Local persistence
+### Current
+- Public GitHub activity integration  
+- Private GitHub OAuth connection  
+- Responsive UI  
+- Recency-first activity feed  
+- Expandable older history  
+- Smarter post generation with signal scoring  
 
-### V2
-- Direct posting integrations
-- Browser extension
-- Enhanced formatting + drafts
+### Next
+- Stronger theme detection and scoring improvements  
+- Better platform-specific formatting  
+- Saved drafts  
+- Browser extension  
+- Direct posting integrations  
+- More advanced ML-assisted summarization  
 
 ---
 
@@ -83,12 +117,15 @@ flutter run -d chrome
 
 BuildLog keeps things simple and secure:
 
-- GitHub OAuth is used for authentication (no passwords stored)
-- Client secrets are handled server-side (Netlify functions)
-- No sensitive credentials are exposed in the frontend
-- No unnecessary user data is stored
+- GitHub OAuth is used for authentication  
+- Passwords are never stored  
+- Client secrets stay server-side in Netlify functions  
+- Private repos are not exposed in generated output  
+- No unnecessary user data is stored  
 
-BuildLog only accesses the minimum GitHub data needed to generate activity summaries.
+BuildLog only uses the GitHub data needed to generate activity summaries.
+
+---
 
 ## ⚠️ Usage Notice
 
@@ -97,21 +134,11 @@ Unauthorized use, reproduction, or distribution of this code is prohibited.
 
 ---
 
-## 🌐 Deployment
-
-This project is designed to be deployed on Netlify.
-
-When deployed:
-- Update GitHub OAuth callback URLs to match your domain
-- Store OAuth credentials in Netlify environment variables
-
----
-
 ## 💡 About
 
-BuildLog is part of **Grit & Flow Labs** — a creative studio focused on building practical, accessible tools that feel good to use.
+BuildLog is part of **Grit & Flow Labs**, a creative studio focused on building practical, accessible tools that feel good to use.
 
-We blend hustle and heart: grit for the build, flow for the experience.
+Built with grit. Designed for flow.
 
 ---
 
